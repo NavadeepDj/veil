@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 
@@ -126,10 +126,13 @@ export default function Home() {
   const [proofGenerated, setProofGenerated] = useState(false);
   const [complaint, setComplaint] = useState(sampleComplaint);
   const [submitted, setSubmitted] = useState(false);
-  const [identityRevealed, setIdentityRevealed] = useState(false);
+  const [revealRequested, setRevealRequested] = useState(false);
+  const [committeeAccessGranted, setCommitteeAccessGranted] = useState(false);
+  const identityRevealed = committeeAccessGranted;
 
   const processed = useMemo(() => processComplaint(complaint), [complaint]);
   const canSubmit = credentialIssued && proofGenerated && complaint.trim().length > 30;
+  const proofMomentReady = credentialIssued && proofGenerated;
 
   return (
     <main className="min-h-screen bg-[#f6f3ee] text-[#171717]">
@@ -147,6 +150,13 @@ export default function Home() {
             <StatusPill label="Identity hidden" active={!identityRevealed} />
           </div>
         </header>
+
+        <MagicMoment
+          identityRevealed={identityRevealed}
+          proofMomentReady={proofMomentReady}
+          revealRequested={revealRequested}
+          submitted={submitted}
+        />
 
         <section className="grid gap-4 lg:grid-cols-[0.9fr_1.2fr_0.9fr]">
           <Panel title="1. Private Eligibility">
@@ -187,13 +197,14 @@ export default function Home() {
                 onChange={(event) => {
                   setComplaint(event.target.value);
                   setSubmitted(false);
-                  setIdentityRevealed(false);
+                  setRevealRequested(false);
+                  setCommitteeAccessGranted(false);
                 }}
                 value={complaint}
               />
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 sm:grid-cols-3">
                 <button
-                  className="h-11 rounded-md bg-[#0e7c7b] px-4 text-sm font-bold text-white transition hover:bg-[#0a6766] disabled:cursor-not-allowed disabled:bg-[#98aaa6]"
+                  className="min-h-11 rounded-md bg-[#0e7c7b] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#0a6766] disabled:cursor-not-allowed disabled:bg-[#98aaa6]"
                   disabled={!canSubmit}
                   onClick={() => setSubmitted(true)}
                   type="button"
@@ -201,12 +212,20 @@ export default function Home() {
                   Submit Protected Complaint
                 </button>
                 <button
-                  className="h-11 rounded-md border border-[#c04b2f] px-4 text-sm font-bold text-[#8f321f] transition hover:bg-white disabled:cursor-not-allowed disabled:border-[#d8d1c4] disabled:text-[#9b948b]"
-                  disabled={!submitted}
-                  onClick={() => setIdentityRevealed(true)}
+                  className="min-h-11 rounded-md border border-[#c04b2f] px-4 py-2 text-sm font-bold text-[#8f321f] transition hover:bg-white disabled:cursor-not-allowed disabled:border-[#d8d1c4] disabled:text-[#9b948b]"
+                  disabled={!submitted || revealRequested}
+                  onClick={() => setRevealRequested(true)}
                   type="button"
                 >
-                  Selective Reveal
+                  {revealRequested ? "Reveal Requested" : "Request Reveal"}
+                </button>
+                <button
+                  className="min-h-11 rounded-md border border-[#111111] px-4 py-2 text-sm font-bold text-[#111111] transition hover:bg-white disabled:cursor-not-allowed disabled:border-[#d8d1c4] disabled:text-[#9b948b]"
+                  disabled={!revealRequested || identityRevealed}
+                  onClick={() => setCommitteeAccessGranted(true)}
+                  type="button"
+                >
+                  {identityRevealed ? "Access Granted" : "Approve Committee Reveal"}
                 </button>
               </div>
             </div>
@@ -215,7 +234,11 @@ export default function Home() {
           <Panel title="3. AI Privacy Processor">
             <div className="space-y-3">
               <Metric label="Category" value={processed.category} tone="ink" />
-              <Metric label="Severity" value={processed.severity} tone={processed.severity === "Urgent" ? "danger" : "amber"} />
+              <Metric
+                label="Severity"
+                value={processed.severity}
+                tone={processed.severity === "Urgent" ? "danger" : "amber"}
+              />
               <Metric label="Redactions" value={`${processed.redactions.length}`} tone="teal" />
               <div className="rounded-md border border-[#d8d1c4] bg-white p-4">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7a4b32]">Sanitized summary</p>
@@ -235,6 +258,10 @@ export default function Home() {
               <div className="space-y-3">
                 <InfoRow label="Verified student" value={proofGenerated ? "Yes, proof accepted" : "Waiting for proof"} />
                 <InfoRow label="Identity" value={identityRevealed ? "Revealed to committee" : "Hidden"} />
+                <InfoRow
+                  label="Disclosure consent"
+                  value={revealRequested ? "Student requested committee-only reveal" : "No reveal requested"}
+                />
                 <InfoRow label="Complaint hash" value={submitted ? processed.complaintHash : "Not logged yet"} />
                 <InfoRow label="Next action" value={submitted ? processed.nextAction : "Submit to route case"} />
               </div>
@@ -246,12 +273,98 @@ export default function Home() {
               <LedgerLine label="studentCommitment" value={credentialIssued ? "0x91ab...valid" : "pending"} />
               <LedgerLine label="proofVerified" value={proofGenerated ? "true" : "false"} />
               <LedgerLine label="complaintHash" value={submitted ? processed.complaintHash : "pending"} />
-              <LedgerLine label="disclosureState" value={identityRevealed ? "committee_only" : "hidden"} />
+              <LedgerLine
+                label="disclosureState"
+                value={identityRevealed ? "committee_only" : revealRequested ? "student_requested" : "hidden"}
+              />
+              <LedgerLine label="revealPolicy" value="student_consent + committee_scope" />
+              <DisclosureTimeline
+                identityRevealed={identityRevealed}
+                proofMomentReady={proofMomentReady}
+                revealRequested={revealRequested}
+                submitted={submitted}
+              />
             </div>
           </Panel>
         </section>
       </div>
     </main>
+  );
+}
+
+function MagicMoment({
+  identityRevealed,
+  proofMomentReady,
+  revealRequested,
+  submitted,
+}: {
+  identityRevealed: boolean;
+  proofMomentReady: boolean;
+  revealRequested: boolean;
+  submitted: boolean;
+}) {
+  const message = proofMomentReady
+    ? "Proof verified. Student eligibility confirmed. Identity still hidden."
+    : "Generate the private credential proof to unlock the verified-anonymous complaint flow.";
+
+  return (
+    <section className="grid gap-4 rounded-lg border border-[#0e7c7b] bg-[#e7f4f1] p-4 md:grid-cols-[1fr_1.2fr]">
+      <div>
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-[#0a6766]">Magic moment</p>
+        <h2 className="mt-2 text-2xl font-black text-[#102927]">Verified without revealing identity.</h2>
+        <p className="mt-2 text-sm leading-6 text-[#315350]">{message}</p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-4">
+        <MomentStep label="Credential issued" active={proofMomentReady} />
+        <MomentStep label="Proof accepted" active={proofMomentReady} />
+        <MomentStep label="Complaint logged" active={submitted} />
+        <MomentStep
+          label={identityRevealed ? "Committee reveal" : revealRequested ? "Reveal pending" : "Identity hidden"}
+          active={!identityRevealed}
+        />
+      </div>
+    </section>
+  );
+}
+
+function MomentStep({ label, active }: { label: string; active: boolean }) {
+  return (
+    <div className={`rounded-md border p-3 ${active ? "border-[#0e7c7b] bg-white" : "border-[#b8d7d1] bg-[#f4fbf9]"}`}>
+      <p className={`text-sm font-black ${active ? "text-[#0a6766]" : "text-[#6b827f]"}`}>{active ? "Done" : "Next"}</p>
+      <p className="mt-1 text-xs font-bold leading-5 text-[#23413e]">{label}</p>
+    </div>
+  );
+}
+
+function DisclosureTimeline({
+  identityRevealed,
+  proofMomentReady,
+  revealRequested,
+  submitted,
+}: {
+  identityRevealed: boolean;
+  proofMomentReady: boolean;
+  revealRequested: boolean;
+  submitted: boolean;
+}) {
+  const events = [
+    proofMomentReady ? "Eligibility proof accepted without identity reveal" : "Awaiting private eligibility proof",
+    submitted ? "Sanitized complaint hash logged" : "Complaint not logged yet",
+    revealRequested ? "Student consented to committee-only reveal" : "Identity remains sealed",
+    identityRevealed ? "Committee access granted and auditable" : "No committee identity access",
+  ];
+
+  return (
+    <div className="rounded-md border border-[#d8d1c4] bg-white p-3 font-sans">
+      <p className="text-xs font-black uppercase tracking-[0.16em] text-[#7a4b32]">Audit trail</p>
+      <div className="mt-3 space-y-2">
+        {events.map((event) => (
+          <p className="text-xs font-semibold leading-5 text-[#333333]" key={event}>
+            {event}
+          </p>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -315,4 +428,3 @@ function LedgerLine({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-
