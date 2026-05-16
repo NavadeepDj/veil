@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Local AI agent skills are reference material, not app source.
+    ".agents/**",
   ]),
 ]);
 

@@ -1,138 +1,68 @@
 "use client";
 
-import { useMemo, useState } from "react";
-
-type ProcessedComplaint = {
-  sanitized: string;
-  category: string;
-  severity: string;
-  summary: string;
-  redactions: string[];
-  complaintHash: string;
-  nextAction: string;
-};
+import { useState } from "react";
+import { emptyProcessedComplaint, type ProcessedComplaint } from "@/lib/complaint-processing";
 
 const sampleComplaint =
   "My name is Priya Nair, roll number CSE-22-104. Professor Kumar from CSE-A threatened to fail me after I refused to meet him alone after class. Please do not reveal my identity because I am scared this will affect my grades.";
-
-const categoryRules = [
-  { category: "Harassment", words: ["harass", "threat", "alone", "scared", "professor"] },
-  { category: "Safety Risk", words: ["violence", "unsafe", "attack", "stalk", "threat"] },
-  { category: "Discrimination", words: ["caste", "religion", "gender", "race", "discrimination"] },
-  { category: "Academic Abuse", words: ["fail", "grades", "marks", "attendance", "internal"] },
-  { category: "Bullying", words: ["bully", "ragging", "humiliate", "mock", "group"] },
-];
-
-function hashText(text: string) {
-  let hash = 0;
-
-  for (let index = 0; index < text.length; index += 1) {
-    hash = (hash << 5) - hash + text.charCodeAt(index);
-    hash |= 0;
-  }
-
-  return `0x${Math.abs(hash).toString(16).padStart(8, "0")}${text.length
-    .toString(16)
-    .padStart(4, "0")}`;
-}
-
-function addRedaction(redactions: Set<string>, label: string) {
-  redactions.add(label);
-}
-
-function processComplaint(rawComplaint: string): ProcessedComplaint {
-  const redactions = new Set<string>();
-  let sanitized = rawComplaint.trim();
-
-  const replacements: Array<{ label: string; pattern: RegExp; value: string }> = [
-    {
-      label: "student name",
-      pattern: /\b(my name is|i am|this is)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?/gi,
-      value: "$1 [student identity redacted]",
-    },
-    {
-      label: "roll number",
-      pattern: /\b(?:roll(?:\s+number|\s+no\.?|\s+id)?|student\s+id)\s*[:#-]?\s*[A-Z]{2,5}[- ]?\d{2}[- ]?\d{2,5}\b/gi,
-      value: "[student identifier redacted]",
-    },
-    {
-      label: "school email",
-      pattern: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
-      value: "[school email redacted]",
-    },
-    {
-      label: "phone number",
-      pattern: /(?:\+?91[-\s]?)?[6-9]\d{9}\b/g,
-      value: "[phone redacted]",
-    },
-    {
-      label: "faculty name",
-      pattern: /\b(?:professor|prof\.?|dr\.?)\s+[A-Z][a-z]+\b/gi,
-      value: "faculty member",
-    },
-    {
-      label: "section detail",
-      pattern: /\b(?:CSE|ECE|EEE|ME|IT|AIML|DS)[-\s]?[A-Z]\b/g,
-      value: "[department section redacted]",
-    },
-  ];
-
-  replacements.forEach(({ label, pattern, value }) => {
-    if (pattern.test(sanitized)) {
-      addRedaction(redactions, label);
-      sanitized = sanitized.replace(pattern, value);
-    }
-  });
-
-  const lower = sanitized.toLowerCase();
-  const matches = categoryRules
-    .map((rule) => ({
-      category: rule.category,
-      score: rule.words.filter((word) => lower.includes(word)).length,
-    }))
-    .sort((left, right) => right.score - left.score);
-
-  const category = matches[0]?.score ? matches[0].category : "General Complaint";
-  const urgentWords = ["threat", "unsafe", "attack", "scared", "violence", "alone"];
-  const highWords = ["fail", "harass", "blackmail", "retaliation", "pressure"];
-  const urgentScore = urgentWords.filter((word) => lower.includes(word)).length;
-  const highScore = highWords.filter((word) => lower.includes(word)).length;
-  const severity = urgentScore >= 2 ? "Urgent" : highScore >= 1 ? "High" : "Medium";
-  const nextAction =
-    severity === "Urgent"
-      ? "Route to protected committee review within 24 hours."
-      : "Route to confidential student grievance review.";
-
-  const summary =
-    category === "Harassment"
-      ? "Verified student reports possible harassment and retaliation risk involving a faculty member."
-      : `Verified student reports a ${category.toLowerCase()} concern requiring confidential review.`;
-
-  return {
-    sanitized:
-      sanitized ||
-      "Complaint will appear here after the student submits sensitive details for private processing.",
-    category,
-    severity,
-    summary,
-    redactions: Array.from(redactions),
-    complaintHash: hashText(rawComplaint || "empty complaint"),
-    nextAction,
-  };
-}
 
 export default function Home() {
   const [credentialIssued, setCredentialIssued] = useState(false);
   const [proofGenerated, setProofGenerated] = useState(false);
   const [complaint, setComplaint] = useState(sampleComplaint);
+  const [processed, setProcessed] = useState<ProcessedComplaint>(() => emptyProcessedComplaint());
   const [submitted, setSubmitted] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [processingError, setProcessingError] = useState("");
+  const [privacyBoundary, setPrivacyBoundary] = useState("Ready to process only after proof verification.");
   const [revealRequested, setRevealRequested] = useState(false);
   const [committeeAccessGranted, setCommitteeAccessGranted] = useState(false);
   const identityRevealed = committeeAccessGranted;
 
-  const processed = useMemo(() => processComplaint(complaint), [complaint]);
-  const canSubmit = credentialIssued && proofGenerated && complaint.trim().length > 30;
+  const canSubmit = credentialIssued && proofGenerated && complaint.trim().length > 30 && !processing;
   const proofMomentReady = credentialIssued && proofGenerated;
+
+  async function handleProtectedSubmit() {
+    if (!canSubmit) {
+      return;
+    }
+
+    setProcessing(true);
+    setProcessingError("");
+    setSubmitted(false);
+    setRevealRequested(false);
+    setCommitteeAccessGranted(false);
+
+    try {
+      const response = await fetch("/api/process-complaint", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ complaint }),
+      });
+
+      const body = (await response.json()) as {
+        error?: string;
+        processed?: ProcessedComplaint;
+        privacyBoundary?: string;
+      };
+
+      if (!response.ok || !body.processed) {
+        throw new Error(body.error || "Unable to process complaint privately.");
+      }
+
+      setProcessed(body.processed);
+      setPrivacyBoundary(body.privacyBoundary || "Sanitized case is ready for admin review.");
+      setSubmitted(true);
+    } catch (error) {
+      setProcessed(emptyProcessedComplaint());
+      setProcessingError(error instanceof Error ? error.message : "Unable to process complaint privately.");
+      setPrivacyBoundary("Processing failed before any admin case was created.");
+    } finally {
+      setProcessing(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[#f6f3ee] text-[#171717]">
@@ -153,6 +83,7 @@ export default function Home() {
 
         <MagicMoment
           identityRevealed={identityRevealed}
+          processing={processing}
           proofMomentReady={proofMomentReady}
           revealRequested={revealRequested}
           submitted={submitted}
@@ -199,6 +130,8 @@ export default function Home() {
                   setSubmitted(false);
                   setRevealRequested(false);
                   setCommitteeAccessGranted(false);
+                  setProcessingError("");
+                  setPrivacyBoundary("Complaint changed. Submit again to create a sanitized case.");
                 }}
                 value={complaint}
               />
@@ -206,10 +139,10 @@ export default function Home() {
                 <button
                   className="min-h-11 rounded-md bg-[#0e7c7b] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#0a6766] disabled:cursor-not-allowed disabled:bg-[#98aaa6]"
                   disabled={!canSubmit}
-                  onClick={() => setSubmitted(true)}
+                  onClick={handleProtectedSubmit}
                   type="button"
                 >
-                  Submit Protected Complaint
+                  {processing ? "Processing Privately" : "Submit Protected Complaint"}
                 </button>
                 <button
                   className="min-h-11 rounded-md border border-[#c04b2f] px-4 py-2 text-sm font-bold text-[#8f321f] transition hover:bg-white disabled:cursor-not-allowed disabled:border-[#d8d1c4] disabled:text-[#9b948b]"
@@ -228,21 +161,29 @@ export default function Home() {
                   {identityRevealed ? "Access Granted" : "Approve Committee Reveal"}
                 </button>
               </div>
+              <div className="rounded-md border border-[#d8d1c4] bg-white p-3">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#7a4b32]">Privacy boundary</p>
+                <p className="mt-1 text-sm font-semibold leading-6 text-[#333333]">
+                  {processingError || privacyBoundary}
+                </p>
+              </div>
             </div>
           </Panel>
 
-          <Panel title="3. AI Privacy Processor">
+          <Panel title="3. Privacy Processor">
             <div className="space-y-3">
-              <Metric label="Category" value={processed.category} tone="ink" />
+              <Metric label="Category" value={submitted ? processed.category : "Pending"} tone="ink" />
               <Metric
                 label="Severity"
-                value={processed.severity}
-                tone={processed.severity === "Urgent" ? "danger" : "amber"}
+                value={submitted ? processed.severity : "Pending"}
+                tone={submitted && processed.severity === "Urgent" ? "danger" : "amber"}
               />
-              <Metric label="Redactions" value={`${processed.redactions.length}`} tone="teal" />
+              <Metric label="Redactions" value={submitted ? `${processed.redactions.length}` : "0"} tone="teal" />
               <div className="rounded-md border border-[#d8d1c4] bg-white p-4">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7a4b32]">Sanitized summary</p>
-                <p className="mt-2 text-sm leading-6 text-[#333333]">{processed.summary}</p>
+                <p className="mt-2 text-sm leading-6 text-[#333333]">
+                  {submitted ? processed.summary : "Submit after proof verification to generate a sanitized summary."}
+                </p>
               </div>
             </div>
           </Panel>
@@ -253,7 +194,9 @@ export default function Home() {
             <div className="grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
               <div className="rounded-md border border-[#d8d1c4] bg-white p-4">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7a4b32]">Visible to admins</p>
-                <p className="mt-3 text-base leading-7 text-[#262626]">{processed.sanitized}</p>
+                <p className="mt-3 text-base leading-7 text-[#262626]">
+                  {submitted ? processed.sanitized : "No admin-visible complaint until private processing completes."}
+                </p>
               </div>
               <div className="space-y-3">
                 <InfoRow label="Verified student" value={proofGenerated ? "Yes, proof accepted" : "Waiting for proof"} />
@@ -280,6 +223,7 @@ export default function Home() {
               <LedgerLine label="revealPolicy" value="student_consent + committee_scope" />
               <DisclosureTimeline
                 identityRevealed={identityRevealed}
+                processing={processing}
                 proofMomentReady={proofMomentReady}
                 revealRequested={revealRequested}
                 submitted={submitted}
@@ -294,11 +238,13 @@ export default function Home() {
 
 function MagicMoment({
   identityRevealed,
+  processing,
   proofMomentReady,
   revealRequested,
   submitted,
 }: {
   identityRevealed: boolean;
+  processing: boolean;
   proofMomentReady: boolean;
   revealRequested: boolean;
   submitted: boolean;
@@ -317,7 +263,7 @@ function MagicMoment({
       <div className="grid gap-2 sm:grid-cols-4">
         <MomentStep label="Credential issued" active={proofMomentReady} />
         <MomentStep label="Proof accepted" active={proofMomentReady} />
-        <MomentStep label="Complaint logged" active={submitted} />
+        <MomentStep label={processing ? "Processing privately" : "Complaint logged"} active={submitted || processing} />
         <MomentStep
           label={identityRevealed ? "Committee reveal" : revealRequested ? "Reveal pending" : "Identity hidden"}
           active={!identityRevealed}
@@ -338,18 +284,20 @@ function MomentStep({ label, active }: { label: string; active: boolean }) {
 
 function DisclosureTimeline({
   identityRevealed,
+  processing,
   proofMomentReady,
   revealRequested,
   submitted,
 }: {
   identityRevealed: boolean;
+  processing: boolean;
   proofMomentReady: boolean;
   revealRequested: boolean;
   submitted: boolean;
 }) {
   const events = [
     proofMomentReady ? "Eligibility proof accepted without identity reveal" : "Awaiting private eligibility proof",
-    submitted ? "Sanitized complaint hash logged" : "Complaint not logged yet",
+    processing ? "Sanitization running in privacy processing API" : submitted ? "Sanitized complaint hash logged" : "Complaint not logged yet",
     revealRequested ? "Student consented to committee-only reveal" : "Identity remains sealed",
     identityRevealed ? "Committee access granted and auditable" : "No committee identity access",
   ];
