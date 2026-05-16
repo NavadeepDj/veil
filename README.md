@@ -30,6 +30,12 @@ This base version uses a mock Midnight proof flow so the product demo works end 
 
 Raw complaint text is not intended to be stored on-chain. A real Midnight integration should store commitments, hashes, permission states, and verification results only.
 
+
+## Midnight DApp Status
+
+Veil is currently dApp-shaped with a mock Midnight UI and a first Compact contract source in `contracts/veil.compact`. The contract is intentionally small and only models public/provable privacy metadata: student commitment, proof status, complaint hash, disclosure state, and case counter.
+
+The contract is not compiled in this workspace yet. On Windows, `compact --version` may resolve to the built-in NTFS compression utility. Install the real Midnight Compact compiler and ensure it is first on `PATH` before compiling.
 ## Optional Midnight Skills
 
 Midnight skills are local agent reference material and are not committed to the app source. To install them locally, run:

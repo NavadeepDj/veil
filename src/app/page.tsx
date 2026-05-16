@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { emptyProcessedComplaint, type ProcessedComplaint } from "@/lib/complaint-processing";
+import { disclosureStateLabel, disclosureStates } from "@/lib/veil-contract";
 
 const sampleComplaint =
   "My name is Priya Nair, roll number CSE-22-104. Professor Kumar from CSE-A threatened to fail me after I refused to meet him alone after class. Please do not reveal my identity because I am scared this will affect my grades.";
@@ -18,6 +19,11 @@ export default function Home() {
   const [revealRequested, setRevealRequested] = useState(false);
   const [committeeAccessGranted, setCommitteeAccessGranted] = useState(false);
   const identityRevealed = committeeAccessGranted;
+  const disclosureState = identityRevealed
+    ? disclosureStates.committeeOnly
+    : revealRequested
+      ? disclosureStates.studentRequested
+      : disclosureStates.hidden;
 
   const canSubmit = credentialIssued && proofGenerated && complaint.trim().length > 30 && !processing;
   const proofMomentReady = credentialIssued && proofGenerated;
@@ -215,10 +221,11 @@ export default function Home() {
             <div className="space-y-3 font-mono text-xs text-[#2f2f2f]">
               <LedgerLine label="studentCommitment" value={credentialIssued ? "0x91ab...valid" : "pending"} />
               <LedgerLine label="proofVerified" value={proofGenerated ? "true" : "false"} />
-              <LedgerLine label="complaintHash" value={submitted ? processed.complaintHash : "pending"} />
+              <LedgerLine label="latestComplaintHash" value={submitted ? processed.complaintHash : "pending"} />
+              <LedgerLine label="caseCounter" value={submitted ? "1" : "0"} />
               <LedgerLine
                 label="disclosureState"
-                value={identityRevealed ? "committee_only" : revealRequested ? "student_requested" : "hidden"}
+                value={disclosureStateLabel(disclosureState)}
               />
               <LedgerLine label="revealPolicy" value="student_consent + committee_scope" />
               <DisclosureTimeline

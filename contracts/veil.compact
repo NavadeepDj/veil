@@ -1,0 +1,41 @@
+pragma language_version >= 0.23;
+
+import CompactStandardLibrary;
+
+// Veil stores only public/provable privacy metadata on Midnight.
+// Never put raw complaint text, names, roll numbers, emails, evidence, or wallet identity here.
+export ledger studentCommitment: Bytes<32>;
+export ledger proofVerified: Boolean;
+export ledger latestComplaintHash: Bytes<32>;
+export ledger disclosureState: Uint<8>;
+export ledger caseCounter: Counter;
+
+constructor() {
+  proofVerified = false;
+  disclosureState = 0 as Uint<8>;
+}
+
+export circuit registerStudentCommitment(commitment: Bytes<32>): [] {
+  studentCommitment = disclose(commitment);
+  proofVerified = disclose(true);
+}
+
+export circuit logComplaint(complaintHash: Bytes<32>): [] {
+  assert(proofVerified, "student proof required");
+
+  latestComplaintHash = disclose(complaintHash);
+  disclosureState = disclose(0 as Uint<8>);
+  caseCounter.increment(1);
+}
+
+export circuit requestReveal(): [] {
+  assert(proofVerified, "student proof required");
+
+  disclosureState = disclose(1 as Uint<8>);
+}
+
+export circuit approveCommitteeReveal(): [] {
+  assert(proofVerified, "student proof required");
+
+  disclosureState = disclose(2 as Uint<8>);
+}
