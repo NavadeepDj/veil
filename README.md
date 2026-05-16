@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Veil
 
-## Getting Started
+Veil is a privacy-preserving AI complaint management MVP for schools and colleges.
 
-First, run the development server:
+A student can prove they are eligible to report a complaint without exposing their identity, submit a sensitive complaint, and let the system produce a sanitized case summary for administrators. Identity stays hidden unless the student chooses selective disclosure for an authorized committee.
+
+## Magic Moment
+
+> Verified student. Hidden identity. Actionable complaint.
+
+The demo focuses on one memorable interaction: the system verifies that the reporter is a real student while keeping the student's name, roll number, email, and other personal details out of the admin workflow.
+
+## MVP Flow
+
+1. Issue a private student credential.
+2. Generate a Midnight-style proof of eligibility.
+3. Submit a sensitive complaint.
+4. AI privacy processor redacts personal details.
+5. Admin sees only the sanitized complaint, category, severity, and case hash.
+6. Student can selectively reveal identity to a committee if needed.
+
+## Current Scope
+
+This base version uses a mock Midnight proof flow so the product demo works end to end first. The contract-shaped state is already represented in the UI:
+
+- `studentCommitment`
+- `proofVerified`
+- `complaintHash`
+- `disclosureState`
+
+Raw complaint text is not intended to be stored on-chain. A real Midnight integration should store commitments, hashes, permission states, and verification results only.
+
+## Tech Stack
+
+- Next.js
+- TypeScript
+- Tailwind CSS
+- Midnight integration planned for private proof and selective disclosure state
+
+## Run Locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+On Windows PowerShell, use `npm.cmd` if script execution policy blocks `npm`:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```powershell
+npm.cmd install
+npm.cmd run dev
+```

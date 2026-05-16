@@ -67,7 +67,7 @@ function processComplaint(rawComplaint: string): ProcessedComplaint {
     },
     {
       label: "faculty name",
-      pattern: /\b(?:professor|prof\.?|dr\.?)\s+[A-Z][a-z]+\b/g,
+      pattern: /\b(?:professor|prof\.?|dr\.?)\s+[A-Z][a-z]+\b/gi,
       value: "faculty member",
     },
     {
@@ -315,3 +315,4 @@ function LedgerLine({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
