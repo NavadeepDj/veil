@@ -71,16 +71,16 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f3ee] text-[#171717]">
+    <main className="min-h-screen bg-transparent text-[color:var(--ink)]">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-4 sm:px-6 lg:px-8">
-        <header className="flex flex-col justify-between gap-4 border-b border-[#d8d1c4] pb-4 md:flex-row md:items-end">
+        <header className="flex flex-col justify-between gap-4 border-b border-[color:var(--stroke)] pb-4 md:flex-row md:items-end">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.28em] text-[#7a4b32]">Veil</p>
-            <h1 className="mt-2 max-w-3xl text-3xl font-semibold tracking-normal text-[#111111] sm:text-5xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.38em] text-[color:var(--accent-2)]">Veil</p>
+            <h1 className="mt-3 max-w-3xl font-display text-3xl tracking-tight text-[color:var(--ink-strong)] sm:text-5xl">
               Verified student. Hidden identity. Actionable complaint.
             </h1>
           </div>
-          <div className="grid grid-cols-3 gap-2 text-sm font-semibold text-[#2c2c2c] sm:min-w-[420px]">
+          <div className="grid grid-cols-3 gap-2 text-sm font-semibold text-[color:var(--ink)] sm:min-w-[420px]">
             <StatusPill label="Credential" active={credentialIssued} />
             <StatusPill label="ZK proof" active={proofGenerated} />
             <StatusPill label="Identity hidden" active={!identityRevealed} />
@@ -98,21 +98,21 @@ export default function Home() {
         <section className="grid gap-4 lg:grid-cols-[0.9fr_1.2fr_0.9fr]">
           <Panel title="1. Private Eligibility">
             <div className="space-y-3">
-              <div className="rounded-md border border-[#d8d1c4] bg-white p-4">
-                <p className="text-sm font-semibold text-[#262626]">School credential</p>
-                <p className="mt-1 text-sm leading-6 text-[#5d5952]">
+              <div className="rounded-md border border-[color:var(--stroke)] bg-[color:var(--night-2)] p-4">
+                <p className="text-sm font-semibold text-[color:var(--ink-strong)]">School credential</p>
+                <p className="mt-1 text-sm leading-6 text-[color:var(--ink-soft)]">
                   The school confirms eligibility once. Veil keeps only a private commitment for proof checks.
                 </p>
               </div>
               <button
-                className="h-11 w-full rounded-md bg-[#111111] px-4 text-sm font-bold text-white transition hover:bg-[#2d2d2d] disabled:cursor-not-allowed disabled:bg-[#a8a29a]"
+                className="h-11 w-full rounded-md bg-[color:var(--accent)] px-4 text-sm font-bold text-[color:var(--night-1)] transition hover:bg-[#3dd6ef] disabled:cursor-not-allowed disabled:bg-[color:var(--stroke)] disabled:text-[color:var(--ink-soft)]"
                 onClick={() => setCredentialIssued(true)}
                 type="button"
               >
                 Issue Private Student Credential
               </button>
               <button
-                className="h-11 w-full rounded-md border border-[#111111] bg-transparent px-4 text-sm font-bold text-[#111111] transition hover:bg-white disabled:cursor-not-allowed disabled:border-[#b8b0a4] disabled:text-[#8a8277]"
+                className="h-11 w-full rounded-md border border-[color:var(--accent)] bg-transparent px-4 text-sm font-bold text-[color:var(--accent)] transition hover:bg-[rgba(42,195,222,0.12)] disabled:cursor-not-allowed disabled:border-[color:var(--stroke)] disabled:text-[color:var(--ink-soft)]"
                 disabled={!credentialIssued}
                 onClick={() => setProofGenerated(true)}
                 type="button"
@@ -125,11 +125,11 @@ export default function Home() {
 
           <Panel title="2. Student Complaint">
             <div className="grid gap-3">
-              <label className="text-sm font-bold text-[#262626]" htmlFor="complaint">
+              <label className="text-sm font-bold text-[color:var(--ink-strong)]" htmlFor="complaint">
                 Raw complaint held privately
               </label>
               <textarea
-                className="min-h-[230px] resize-none rounded-md border border-[#cfc6b8] bg-white p-4 text-sm leading-6 text-[#222222] outline-none ring-[#0e7c7b] transition focus:ring-2"
+                className="min-h-[230px] resize-none rounded-md border border-[color:var(--stroke)] bg-[color:var(--night-2)] p-4 text-sm leading-6 text-[color:var(--ink)] outline-none ring-[color:var(--accent)] transition focus:ring-2"
                 id="complaint"
                 onChange={(event) => {
                   setComplaint(event.target.value);
@@ -143,7 +143,7 @@ export default function Home() {
               />
               <div className="grid gap-3 sm:grid-cols-3">
                 <button
-                  className="min-h-11 rounded-md bg-[#0e7c7b] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#0a6766] disabled:cursor-not-allowed disabled:bg-[#98aaa6]"
+                  className="min-h-11 rounded-md bg-[color:var(--accent)] px-4 py-2 text-sm font-bold text-[color:var(--night-1)] transition hover:bg-[#3dd6ef] disabled:cursor-not-allowed disabled:bg-[color:var(--stroke)] disabled:text-[color:var(--ink-soft)]"
                   disabled={!canSubmit}
                   onClick={handleProtectedSubmit}
                   type="button"
@@ -151,7 +151,7 @@ export default function Home() {
                   {processing ? "Processing Privately" : "Submit Protected Complaint"}
                 </button>
                 <button
-                  className="min-h-11 rounded-md border border-[#c04b2f] px-4 py-2 text-sm font-bold text-[#8f321f] transition hover:bg-white disabled:cursor-not-allowed disabled:border-[#d8d1c4] disabled:text-[#9b948b]"
+                  className="min-h-11 rounded-md border border-[color:var(--accent-3)] px-4 py-2 text-sm font-bold text-[color:var(--accent-3)] transition hover:bg-[rgba(247,118,142,0.12)] disabled:cursor-not-allowed disabled:border-[color:var(--stroke)] disabled:text-[color:var(--ink-soft)]"
                   disabled={!submitted || revealRequested}
                   onClick={() => setRevealRequested(true)}
                   type="button"
@@ -159,7 +159,7 @@ export default function Home() {
                   {revealRequested ? "Reveal Requested" : "Request Reveal"}
                 </button>
                 <button
-                  className="min-h-11 rounded-md border border-[#111111] px-4 py-2 text-sm font-bold text-[#111111] transition hover:bg-white disabled:cursor-not-allowed disabled:border-[#d8d1c4] disabled:text-[#9b948b]"
+                  className="min-h-11 rounded-md border border-[color:var(--ink-soft)] px-4 py-2 text-sm font-bold text-[color:var(--ink)] transition hover:bg-[color:var(--night-4)] disabled:cursor-not-allowed disabled:border-[color:var(--stroke)] disabled:text-[color:var(--ink-soft)]"
                   disabled={!revealRequested || identityRevealed}
                   onClick={() => setCommitteeAccessGranted(true)}
                   type="button"
@@ -167,9 +167,9 @@ export default function Home() {
                   {identityRevealed ? "Access Granted" : "Approve Committee Reveal"}
                 </button>
               </div>
-              <div className="rounded-md border border-[#d8d1c4] bg-white p-3">
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#7a4b32]">Privacy boundary</p>
-                <p className="mt-1 text-sm font-semibold leading-6 text-[#333333]">
+              <div className="rounded-md border border-[color:var(--stroke)] bg-[color:var(--night-2)] p-3">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-[color:var(--accent-2)]">Privacy boundary</p>
+                <p className="mt-1 text-sm font-semibold leading-6 text-[color:var(--ink)]">
                   {processingError || privacyBoundary}
                 </p>
               </div>
@@ -185,9 +185,9 @@ export default function Home() {
                 tone={submitted && processed.severity === "Urgent" ? "danger" : "amber"}
               />
               <Metric label="Redactions" value={submitted ? `${processed.redactions.length}` : "0"} tone="teal" />
-              <div className="rounded-md border border-[#d8d1c4] bg-white p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7a4b32]">Sanitized summary</p>
-                <p className="mt-2 text-sm leading-6 text-[#333333]">
+              <div className="rounded-md border border-[color:var(--stroke)] bg-[color:var(--night-2)] p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[color:var(--accent-2)]">Sanitized summary</p>
+                <p className="mt-2 text-sm leading-6 text-[color:var(--ink)]">
                   {submitted ? processed.summary : "Submit after proof verification to generate a sanitized summary."}
                 </p>
               </div>
@@ -198,9 +198,9 @@ export default function Home() {
         <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
           <Panel title="Admin View: Sanitized Case">
             <div className="grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
-              <div className="rounded-md border border-[#d8d1c4] bg-white p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7a4b32]">Visible to admins</p>
-                <p className="mt-3 text-base leading-7 text-[#262626]">
+              <div className="rounded-md border border-[color:var(--stroke)] bg-[color:var(--night-2)] p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[color:var(--accent-2)]">Visible to admins</p>
+                <p className="mt-3 text-base leading-7 text-[color:var(--ink)]">
                   {submitted ? processed.sanitized : "No admin-visible complaint until private processing completes."}
                 </p>
               </div>
@@ -218,7 +218,7 @@ export default function Home() {
           </Panel>
 
           <Panel title="Midnight Contract Shape">
-            <div className="space-y-3 font-mono text-xs text-[#2f2f2f]">
+            <div className="space-y-3 font-mono text-xs text-[color:var(--ink-soft)]">
               <LedgerLine label="studentCommitment" value={credentialIssued ? "0x91ab...valid" : "pending"} />
               <LedgerLine label="proofVerified" value={proofGenerated ? "true" : "false"} />
               <LedgerLine label="latestComplaintHash" value={submitted ? processed.complaintHash : "pending"} />
@@ -259,32 +259,153 @@ function MagicMoment({
   const message = proofMomentReady
     ? "Proof verified. Student eligibility confirmed. Identity still hidden."
     : "Generate the private credential proof to unlock the verified-anonymous complaint flow.";
+  const progress = identityRevealed
+    ? 100
+    : revealRequested
+      ? 84
+      : submitted || processing
+        ? 68
+        : proofMomentReady
+          ? 42
+          : 18;
+  const stageLabel = identityRevealed
+    ? "Committee-only access granted."
+    : revealRequested
+      ? "Waiting on committee approval."
+      : submitted || processing
+        ? "Sanitized case ready for admin review."
+        : proofMomentReady
+          ? "Eligibility proof verified."
+          : "Issue credential and generate proof.";
+  const proofLabel = proofMomentReady ? "Verified" : "Pending";
+  const complaintLabel = processing ? "Processing" : submitted ? "Sanitized" : "Waiting";
+  const identityLabel = identityRevealed ? "Revealed" : revealRequested ? "Pending" : "Hidden";
+  const complaintTone = processing ? "amber" : submitted ? "teal" : "ink";
+  const identityTone = identityRevealed ? "amber" : revealRequested ? "ink" : "teal";
+  const events = [
+    proofMomentReady ? "Eligibility proof accepted without identity reveal." : "Awaiting eligibility proof.",
+    processing
+      ? "Complaint is processing inside the privacy boundary."
+      : submitted
+        ? "Sanitized complaint hash logged."
+        : "Complaint not logged yet.",
+    revealRequested ? "Student requested committee-only reveal." : "Identity remains sealed by default.",
+  ];
 
   return (
-    <section className="grid gap-4 rounded-lg border border-[#0e7c7b] bg-[#e7f4f1] p-4 md:grid-cols-[1fr_1.2fr]">
-      <div>
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-[#0a6766]">Magic moment</p>
-        <h2 className="mt-2 text-2xl font-black text-[#102927]">Verified without revealing identity.</h2>
-        <p className="mt-2 text-sm leading-6 text-[#315350]">{message}</p>
-      </div>
-      <div className="grid gap-2 sm:grid-cols-4">
-        <MomentStep label="Credential issued" active={proofMomentReady} />
-        <MomentStep label="Proof accepted" active={proofMomentReady} />
-        <MomentStep label={processing ? "Processing privately" : "Complaint logged"} active={submitted || processing} />
-        <MomentStep
-          label={identityRevealed ? "Committee reveal" : revealRequested ? "Reveal pending" : "Identity hidden"}
-          active={!identityRevealed}
-        />
+    <section className="relative overflow-hidden rounded-2xl border border-[color:var(--stroke)] bg-[linear-gradient(135deg,#1f2335_0%,#24283b_45%,#1f2a44_100%)] p-6 shadow-[0_24px_60px_-40px_rgba(0,0,0,0.7)]">
+      <div className="pointer-events-none absolute -top-32 right-0 h-64 w-64 rounded-full bg-[radial-gradient(circle_at_top,_rgba(42,195,222,0.35),_transparent_65%)] blur-2xl veil-float" />
+      <div className="pointer-events-none absolute -bottom-24 left-10 h-64 w-64 rounded-full bg-[radial-gradient(circle_at_top,_rgba(224,175,104,0.28),_transparent_65%)] blur-2xl" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#2ac3de,#7aa2f7,#e0af68)] veil-shimmer" />
+
+      <div className="relative grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="rounded-full border border-[color:var(--accent)] bg-white/5 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.4em] text-[color:var(--accent)]">
+              Magic moment
+            </span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-[color:var(--ink-soft)]">
+              Zero exposure verification
+            </span>
+          </div>
+          <h2 className="font-display text-3xl text-[color:var(--ink-strong)] sm:text-4xl">Verified without revealing identity.</h2>
+          <p className="max-w-xl text-sm leading-6 text-[color:var(--ink-soft)]">{message}</p>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <MagicStat label="Eligibility proof" value={proofLabel} tone={proofMomentReady ? "teal" : "ink"} />
+            <MagicStat label="Complaint" value={complaintLabel} tone={complaintTone} />
+            <MagicStat label="Identity" value={identityLabel} tone={identityTone} />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[color:var(--ink-soft)]">
+              <span>Live status</span>
+              <span className="text-[color:var(--ink-strong)]">{stageLabel}</span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-white/10">
+              <div
+                className="h-2 rounded-full bg-[linear-gradient(90deg,#2ac3de,#7aa2f7,#e0af68)]"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <MomentStep label="Credential issued" active={proofMomentReady} />
+            <MomentStep label="Proof accepted" active={proofMomentReady} />
+            <MomentStep label={processing ? "Processing privately" : "Complaint logged"} active={submitted || processing} />
+            <MomentStep
+              label={identityRevealed ? "Committee reveal" : revealRequested ? "Reveal pending" : "Identity hidden"}
+              active={!identityRevealed}
+            />
+          </div>
+          <div className="rounded-xl border border-[color:var(--stroke)] bg-[color:var(--night-2)] p-4 shadow-sm backdrop-blur">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-[color:var(--accent-2)]">Proof log</p>
+            <div className="mt-3 space-y-2">
+              {events.map((event) => (
+                <p className="text-xs font-semibold leading-5 text-[color:var(--ink-soft)]" key={event}>
+                  {event}
+                </p>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
 }
 
 function MomentStep({ label, active }: { label: string; active: boolean }) {
+  const status = active ? "Ready" : "Pending";
+
   return (
-    <div className={`rounded-md border p-3 ${active ? "border-[#0e7c7b] bg-white" : "border-[#b8d7d1] bg-[#f4fbf9]"}`}>
-      <p className={`text-sm font-black ${active ? "text-[#0a6766]" : "text-[#6b827f]"}`}>{active ? "Done" : "Next"}</p>
-      <p className="mt-1 text-xs font-bold leading-5 text-[#23413e]">{label}</p>
+    <div
+      className={`rounded-xl border px-4 py-3 shadow-sm backdrop-blur ${
+        active
+          ? "border-[color:var(--accent)] bg-[color:var(--night-2)]"
+          : "border-[color:var(--stroke)] bg-[color:var(--night-3)]"
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <p
+          className={`text-[11px] font-bold uppercase tracking-[0.2em] ${
+            active ? "text-[color:var(--accent)]" : "text-[color:var(--ink-soft)]"
+          }`}
+        >
+          {status}
+        </p>
+        <span
+          className={`h-2 w-2 rounded-full ${
+            active ? "bg-[color:var(--accent)]" : "bg-[color:var(--stroke)]"
+          }`}
+        />
+      </div>
+      <p className="mt-2 text-sm font-semibold text-[color:var(--ink)]">{label}</p>
+    </div>
+  );
+}
+
+function MagicStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "teal" | "amber" | "ink";
+}) {
+  const tones = {
+    teal: "border-[color:var(--accent)] text-[color:var(--accent)]",
+    amber: "border-[color:var(--accent-2)] text-[color:var(--accent-2)]",
+    ink: "border-[color:var(--stroke)] text-[color:var(--ink)]",
+  };
+
+  return (
+    <div className={`rounded-xl border bg-[color:var(--night-2)] px-4 py-3 shadow-sm backdrop-blur ${tones[tone]}`}>
+      <p className="text-[10px] font-bold uppercase tracking-[0.24em] opacity-70">{label}</p>
+      <p className="mt-2 text-base font-semibold">{value}</p>
     </div>
   );
 }
@@ -310,11 +431,11 @@ function DisclosureTimeline({
   ];
 
   return (
-    <div className="rounded-md border border-[#d8d1c4] bg-white p-3 font-sans">
-      <p className="text-xs font-black uppercase tracking-[0.16em] text-[#7a4b32]">Audit trail</p>
+    <div className="rounded-md border border-[color:var(--stroke)] bg-[color:var(--night-2)] p-3 font-sans">
+      <p className="text-xs font-black uppercase tracking-[0.16em] text-[color:var(--accent-2)]">Audit trail</p>
       <div className="mt-3 space-y-2">
         {events.map((event) => (
-          <p className="text-xs font-semibold leading-5 text-[#333333]" key={event}>
+          <p className="text-xs font-semibold leading-5 text-[color:var(--ink-soft)]" key={event}>
             {event}
           </p>
         ))}
@@ -325,8 +446,8 @@ function DisclosureTimeline({
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border border-[#d8d1c4] bg-[#fffaf2] p-4 shadow-sm">
-      <h2 className="mb-4 text-sm font-black uppercase tracking-[0.16em] text-[#242424]">{title}</h2>
+    <section className="rounded-lg border border-[color:var(--stroke)] bg-[color:var(--night-3)] p-4 shadow-[0_18px_40px_-32px_rgba(0,0,0,0.6)]">
+      <h2 className="mb-4 text-sm font-black uppercase tracking-[0.16em] text-[color:var(--accent-2)]">{title}</h2>
       {children}
     </section>
   );
@@ -334,16 +455,24 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 
 function StatusPill({ label, active }: { label: string; active: boolean }) {
   return (
-    <div className={`rounded-md border px-3 py-2 ${active ? "border-[#0e7c7b] bg-[#e7f4f1]" : "border-[#d8d1c4] bg-[#fffaf2]"}`}>
-      <p className="text-xs text-[#69635b]">{label}</p>
-      <p className={`mt-1 text-sm ${active ? "text-[#0a6766]" : "text-[#8a8277]"}`}>{active ? "Ready" : "Pending"}</p>
+    <div
+      className={`rounded-xl border px-3 py-2 shadow-sm ${
+        active
+          ? "border-[color:var(--accent)] bg-[color:var(--night-2)]"
+          : "border-[color:var(--stroke)] bg-[color:var(--night-3)]"
+      }`}
+    >
+      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[color:var(--ink-soft)]">{label}</p>
+      <p className={`mt-1 text-sm font-semibold ${active ? "text-[color:var(--accent)]" : "text-[color:var(--ink-soft)]"}`}>
+        {active ? "Ready" : "Pending"}
+      </p>
     </div>
   );
 }
 
 function ProofLedger({ credentialIssued, proofGenerated }: { credentialIssued: boolean; proofGenerated: boolean }) {
   return (
-    <div className="rounded-md bg-[#181818] p-4 font-mono text-xs text-[#e8e2d8]">
+    <div className="rounded-md border border-[color:var(--stroke)] bg-[color:var(--night-4)] p-4 font-mono text-xs text-[color:var(--ink-soft)]">
       <p>{credentialIssued ? "> credential commitment created" : "> awaiting school credential"}</p>
       <p className="mt-2">{proofGenerated ? "> proof verified without identity reveal" : "> proof not generated"}</p>
     </div>
@@ -352,14 +481,14 @@ function ProofLedger({ credentialIssued, proofGenerated }: { credentialIssued: b
 
 function Metric({ label, value, tone }: { label: string; value: string; tone: "ink" | "danger" | "amber" | "teal" }) {
   const tones = {
-    ink: "border-[#242424] text-[#242424]",
-    danger: "border-[#c04b2f] text-[#a23a24]",
-    amber: "border-[#b8791b] text-[#875813]",
-    teal: "border-[#0e7c7b] text-[#0a6766]",
+    ink: "border-[color:var(--stroke)] text-[color:var(--ink)]",
+    danger: "border-[color:var(--accent-3)] text-[color:var(--accent-3)]",
+    amber: "border-[color:var(--accent-2)] text-[color:var(--accent-2)]",
+    teal: "border-[color:var(--accent)] text-[color:var(--accent)]",
   };
 
   return (
-    <div className={`rounded-md border bg-white p-4 ${tones[tone]}`}>
+    <div className={`rounded-md border bg-[color:var(--night-2)] p-4 ${tones[tone]}`}>
       <p className="text-xs font-bold uppercase tracking-[0.18em] opacity-70">{label}</p>
       <p className="mt-2 text-2xl font-black">{value}</p>
     </div>
@@ -368,18 +497,18 @@ function Metric({ label, value, tone }: { label: string; value: string; tone: "i
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-[#d8d1c4] bg-white p-3">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#7a4b32]">{label}</p>
-      <p className="mt-1 break-words text-sm font-semibold text-[#262626]">{value}</p>
+    <div className="rounded-md border border-[color:var(--stroke)] bg-[color:var(--night-2)] p-3">
+      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[color:var(--accent-2)]">{label}</p>
+      <p className="mt-1 break-words text-sm font-semibold text-[color:var(--ink)]">{value}</p>
     </div>
   );
 }
 
 function LedgerLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-[#d8d1c4] bg-white p-3">
-      <span className="text-[#7a4b32]">{label}</span>
-      <span className="break-all text-right font-bold">{value}</span>
+    <div className="flex items-center justify-between gap-3 rounded-md border border-[color:var(--stroke)] bg-[color:var(--night-2)] p-3">
+      <span className="text-[color:var(--accent-2)]">{label}</span>
+      <span className="break-all text-right font-bold text-[color:var(--ink)]">{value}</span>
     </div>
   );
 }

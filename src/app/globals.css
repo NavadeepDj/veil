@@ -1,14 +1,27 @@
 ﻿@import "tailwindcss";
 
 :root {
-  --background: #f6f3ee;
-  --foreground: #171717;
+  --night-1: #1a1b26;
+  --night-2: #1f2335;
+  --night-3: #24283b;
+  --night-4: #2f3549;
+  --ink: #c0caf5;
+  --ink-strong: #e6e9ff;
+  --ink-soft: #9aa5ce;
+  --accent: #2ac3de;
+  --accent-2: #e0af68;
+  --accent-3: #f7768e;
+  --stroke: #3b4261;
+  --stroke-soft: #2b2f43;
+  --background: var(--night-1);
+  --foreground: var(--ink);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: Arial, Helvetica, sans-serif;
+  --font-sans: "Space Grotesk", "Segoe UI", Arial, sans-serif;
+  --font-display: "Fraunces", "Times New Roman", serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
@@ -22,9 +35,13 @@ html {
 
 body {
   min-height: 100vh;
-  background: var(--background);
+  background: var(--night-1);
+  background-image:
+    radial-gradient(circle at 12% 8%, rgba(42, 195, 222, 0.22), transparent 52%),
+    radial-gradient(circle at 82% 12%, rgba(224, 175, 104, 0.18), transparent 52%),
+    linear-gradient(135deg, #1a1b26 0%, #1f2335 45%, #1c2132 100%);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }
 
 button,
@@ -32,7 +49,96 @@ textarea {
   font: inherit;
 }
 
+.font-display {
+  font-family: var(--font-display);
+}
+
+@keyframes veil-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes veil-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes veil-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes veil-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(42, 195, 222, 0);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(42, 195, 222, 0.28);
+  }
+}
+
+.veil-float {
+  animation: veil-float 8s ease-in-out infinite;
+}
+
+.veil-shimmer {
+  background-size: 200% 200%;
+  animation: veil-shimmer 8s ease infinite;
+}
+
+.veil-reveal {
+  animation: veil-rise 0.8s ease both;
+}
+
+.veil-reveal-delay-1 {
+  animation-delay: 0.12s;
+}
+
+.veil-reveal-delay-2 {
+  animation-delay: 0.24s;
+}
+
+.veil-reveal-delay-3 {
+  animation-delay: 0.36s;
+}
+
+.veil-reveal-delay-4 {
+  animation-delay: 0.48s;
+}
+
+.veil-glow {
+  animation: veil-glow 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .veil-float,
+  .veil-shimmer,
+  .veil-reveal,
+  .veil-glow {
+    animation: none;
+  }
+}
+
 ::selection {
-  background: #0e7c7b;
-  color: white;
+  background: var(--accent);
+  color: #0b1020;
 }
