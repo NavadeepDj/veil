@@ -8,7 +8,7 @@
  * Server-side only (Node.js). Do NOT import in browser React components.
  */
 
-import { CompiledContract } from '@midnight-ntwrk/compact-runtime';
+import { CompiledContract } from '@midnight-ntwrk/compact-js';
 import { deployContract, submitCallTx } from '@midnight-ntwrk/midnight-js-contracts';
 import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
@@ -121,7 +121,25 @@ export async function buildHeadlessWallet(
     relayURL,
   }).startWithSecretKey(dustSecretKey, LedgerParameters.initialParameters().dust);
 
-  const facade = new WalletFacade(shieldedWallet, unshieldedWallet, dustWallet);
+  const walletConfig = {
+    networkId: getNetworkId(),
+    indexerClientConnection: indexerConn,
+    provingServerUrl: proofURL,
+    relayURL,
+    txHistoryStorage: new InMemoryTransactionHistoryStorage(),
+    costParameters: {
+      additionalFeeOverhead: 300_000_000_000_000n,
+      feeBlocksMargin: 5,
+    },
+  };
+
+  const facade = await WalletFacade.init({
+    configuration: walletConfig as any,
+    shielded: () => shieldedWallet,
+    unshielded: () => unshieldedWallet,
+    dust: () => dustWallet,
+  });
+  
   await facade.start(shieldedSecretKeys, dustSecretKey);
 
   // Wait until wallet is synced

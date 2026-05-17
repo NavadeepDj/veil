@@ -1,53 +1,64 @@
 /**
  * veil-midnight.test.ts
  *
- * End-to-end integration test for the Veil Midnight contract.
- *
- * Prerequisites:
- *   docker compose up -d --wait
- *
- * Run with:
- *   npm run test:midnight
- *
- * Takes ~3-5 minutes (wallet sync + ZK proof generation per circuit call).
+ * End-to-end integration test for the Veil Midnight contract using testkit-js.
+ * testkit-js will automatically spin up ephemeral Docker containers for the node,
+ * indexer, proof-server, and faucet, fund the test wallets, and tear everything down.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { getTestEnvironment } from '@midnight-ntwrk/testkit-js';
+import pino from 'pino';
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 
-import { getConfig } from '../src/lib/config';
 import {
-  buildHeadlessWallet,
   buildVeilProviders,
   deployVeilContract,
   hexToBytes,
   bytesToHex,
 } from '../src/lib/midnight-client';
 
-const ALICE_SEED = '0000000000000000000000000000000000000000000000000000000000000001';
-
-describe('Veil Midnight Contract (local devnet)', () => {
+describe('Veil Midnight Contract (testkit-js ephemeral network)', () => {
+  let testEnvironment: any;
   let wallet: any;
   let veilClient: any;
 
-  const config = getConfig();
-
   beforeAll(async () => {
-    console.log('\n=== Setting up Veil integration test ===');
-    setNetworkId(config.networkId);
+    console.log('\n=== Starting Ephemeral Midnight Devnet ===');
+    const logger = pino({ level: 'silent' });
+    testEnvironment = getTestEnvironment(logger);
+    
+    // Start node, indexer, proof server, faucet via Docker
+    const envConfig = await testEnvironment.start();
+    setNetworkId(envConfig.networkId);
+    console.log('Devnet started. Network ID:', envConfig.networkId);
 
-    console.log('Building wallet from seed...');
-    wallet = await buildHeadlessWallet(ALICE_SEED, config);
+    console.log('Generating funded test wallet...');
+    // testkit handles faucet funding automatically
+    wallet = await testEnvironment.getMidnightWalletProvider();
+
+    const config = {
+      networkId: envConfig.networkId,
+      indexer: envConfig.indexer,
+      indexerWS: envConfig.indexerWS,
+      node: envConfig.node,
+      nodeWS: envConfig.nodeWS,
+      proofServer: envConfig.proofServer,
+      faucet: envConfig.faucet,
+    };
 
     const providers = buildVeilProviders(wallet, config);
 
-    console.log('Deploying Veil contract to local devnet...');
+    console.log('Deploying Veil contract...');
     veilClient = await deployVeilContract(providers);
     console.log('✓ Deployed at:', veilClient.contractAddress);
   }, 300_000);
 
   afterAll(async () => {
-    if (wallet?.stop) await wallet.stop();
+    if (testEnvironment) {
+      console.log('Tearing down devnet...');
+      await testEnvironment.shutdown();
+    }
   });
 
   it('initial state: proofVerified=false, caseCounter=0', async () => {
@@ -66,7 +77,6 @@ describe('Veil Midnight Contract (local devnet)', () => {
     await veilClient.registerStudentCommitment(commitment);
 
     const state = await veilClient.getLedger();
-    console.log('After register:', state);
     expect(state.proofVerified).toBe(true);
     expect(bytesToHex(state.studentCommitment)).toBe(
       '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
@@ -81,7 +91,6 @@ describe('Veil Midnight Contract (local devnet)', () => {
     await veilClient.logComplaint(complaintHash);
 
     const state = await veilClient.getLedger();
-    console.log('After logComplaint:', state);
     expect(state.caseCounter).toBe(1n);
     expect(state.disclosureState).toBe(0n);
   }, 120_000);
@@ -90,7 +99,6 @@ describe('Veil Midnight Contract (local devnet)', () => {
     console.log('Calling requestReveal...');
     await veilClient.requestReveal();
     const state = await veilClient.getLedger();
-    console.log('After requestReveal:', state);
     expect(state.disclosureState).toBe(1n);
   }, 120_000);
 
@@ -98,7 +106,6 @@ describe('Veil Midnight Contract (local devnet)', () => {
     console.log('Calling approveCommitteeReveal...');
     await veilClient.approveCommitteeReveal();
     const state = await veilClient.getLedger();
-    console.log('After approveCommitteeReveal:', state);
     expect(state.disclosureState).toBe(2n);
   }, 120_000);
 });
