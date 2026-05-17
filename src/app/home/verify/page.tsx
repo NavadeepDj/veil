@@ -169,8 +169,6 @@ export default function VerifyIdentityPage() {
       <GlowOrb className="-top-24 right-0" />
       <GlowOrb className="-bottom-32 left-0" fromAmber />
 
-      <motionBackdrop />
-      <motionBackdrop />
       <div className="relative mx-auto flex min-h-screen w-full max-w-2xl flex-col px-4 py-8 sm:px-6">
         <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <Link
@@ -228,7 +226,6 @@ export default function VerifyIdentityPage() {
                   <span>Verification progress</span>
                   <span className="text-[color:var(--ink-strong)]">{verifyProgress}%</span>
                 </div>
-                <motionBackdrop />
                 <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
                   <div
                     className="h-full rounded-full bg-[linear-gradient(90deg,#2ac3de,#7aa2f7,#e0af68)] transition-all duration-500 ease-out"
@@ -247,15 +244,12 @@ export default function VerifyIdentityPage() {
                 />
               ) : (
                 <div className="mt-6 grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-                  <motionBackdrop />
                   {phase === "email" || phase === "sendingOtp" ? (
                     <form className="space-y-4" onSubmit={handleSendOtp}>
                       <div>
                         <label className="text-sm font-bold text-[color:var(--ink-strong)]" htmlFor="student-email">
                           Institutional email
                         </label>
-                        <motionBackdrop />
-                        <motionBackdrop />
                         <div className="relative mt-2">
                           <input
                             aria-describedby="email-hint email-checks"
@@ -330,9 +324,9 @@ export default function VerifyIdentityPage() {
                   ) : (
                     <form className="space-y-4" onSubmit={handleVerifyOtp}>
                       <OtpSentBanner
-                        demoOtp={usedDemoEmail ? DEMO_OTP : undefined}
                         maskedEmail={maskEmail(trimmed)}
                         onChangeEmail={handleChangeEmail}
+                        simulatedOtp={expectedOtp}
                       />
 
                       <div>
@@ -458,13 +452,13 @@ function FlowSteps({ phase }: { phase: Phase }) {
 }
 
 function OtpSentBanner({
-  demoOtp,
   maskedEmail,
   onChangeEmail,
+  simulatedOtp,
 }: {
-  demoOtp?: string;
   maskedEmail: string;
   onChangeEmail: () => void;
+  simulatedOtp: string;
 }) {
   return (
     <div className="rounded-xl border border-[color:var(--accent)]/40 bg-[rgba(42,195,222,0.08)] p-4">
@@ -489,12 +483,14 @@ function OtpSentBanner({
           Change
         </button>
       </div>
-      {demoOtp ? (
-        <p className="mt-3 rounded-md border border-dashed border-[color:var(--accent)]/50 bg-[color:var(--night-2)] px-3 py-2 font-mono text-xs text-[color:var(--accent)]">
-          Demo OTP: <span className="font-bold tracking-widest">{demoOtp}</span>
+      {simulatedOtp ? (
+        <p className="mt-3 rounded-md border border-dashed border-[color:var(--accent)]/50 bg-[color:var(--night-2)] px-3 py-2 text-xs text-[color:var(--ink-soft)]">
+          Simulated inbox — your code:{" "}
+          <span className="font-mono font-bold tracking-widest text-[color:var(--accent)]">{simulatedOtp}</span>
+          <span className="mt-1 block text-[10px] opacity-80">In production, this would only appear in your email.</span>
         </p>
       ) : null}
-    </motionBackdrop>
+    </div>
   );
 }
 
@@ -566,6 +562,246 @@ function FormatChecklist({
   total: number;
 }) {
   return (
-    <motionBackdrop />
+    <div className="rounded-xl border border-[color:var(--stroke)] bg-[color:var(--night-2)] p-4" id={id}>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-[color:var(--accent-2)]">Email format</p>
+        <p className="text-xs font-semibold text-[color:var(--ink-soft)]">
+          {passed}/{total} checks
+        </p>
+      </div>
+      <ul className="mt-3 space-y-2">
+        {checks.map((check) => (
+          <li className="flex items-center gap-2 text-xs" key={check.label}>
+            {check.ok ? (
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--accent)]" aria-hidden />
+            ) : (
+              <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-[color:var(--stroke)]" aria-hidden />
+            )}
+            <span className={check.ok ? "text-[color:var(--ink)]" : "text-[color:var(--ink-soft)]"}>{check.label}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function PrivacyPreview({ maskedEmail, verified }: { maskedEmail: string; verified: boolean }) {
+  return (
+    <div className="rounded-xl border border-[color:var(--stroke)] bg-[color:var(--night-2)]/90 p-4 backdrop-blur-sm">
+      <p className="text-xs font-black uppercase tracking-[0.16em] text-[color:var(--accent-2)]">Privacy preview</p>
+      <div className="mt-3 space-y-2">
+        <PreviewRow label="You enter" value={maskedEmail} tone="ink" />
+        <PreviewRow
+          label="Admins see"
+          value={verified ? "Verified student · identity hidden" : "Waiting for OTP verification"}
+          tone={verified ? "teal" : "ink"}
+        />
+      </div>
+    </div>
+  );
+}
+
+function PreviewRow({ label, value, tone }: { label: string; value: string; tone: "ink" | "teal" }) {
+  const tones = {
+    ink: "text-[color:var(--ink-soft)]",
+    teal: "text-[color:var(--accent)]",
+  };
+
+  return (
+    <div className="rounded-lg border border-[color:var(--stroke)] bg-[color:var(--night-3)] px-3 py-2">
+      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[color:var(--ink-soft)]">{label}</p>
+      <p className={`mt-0.5 font-mono text-xs font-semibold ${tones[tone]}`}>{value}</p>
+    </div>
+  );
+}
+
+function SimulationLog({ activeIndex }: { activeIndex: number }) {
+  return (
+    <div className="rounded-xl border border-[color:var(--accent)]/30 bg-[color:var(--night-4)] p-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-[color:var(--accent-2)]">Credential verification</p>
+        <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[color:var(--accent)]">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[color:var(--accent)]" />
+          In progress
+        </span>
+      </div>
+      <ul className="mt-4 space-y-3">
+        {SIMULATION_STEPS.map((step, index) => {
+          const done = index < activeIndex;
+          const active = index === activeIndex;
+
+          return (
+            <li
+              className={`rounded-lg border p-3 transition ${
+                done
+                  ? "border-[color:var(--accent)]/40 bg-[rgba(42,195,222,0.06)]"
+                  : active
+                    ? "border-[color:var(--accent)] bg-[color:var(--night-3)]"
+                    : "border-[color:var(--stroke)] bg-transparent"
+              }`}
+              key={step.label}
+            >
+              <div className="flex items-start gap-3">
+                {done ? (
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--accent)]" aria-hidden />
+                ) : active ? (
+                  <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-[color:var(--accent)]" aria-hidden />
+                ) : (
+                  <span className="mt-1 h-4 w-4 shrink-0 rounded-full border border-[color:var(--stroke)]" aria-hidden />
+                )}
+                <div>
+                  <p
+                    className={`text-sm font-semibold ${
+                      done || active ? "text-[color:var(--ink-strong)]" : "text-[color:var(--ink-soft)]"
+                    }`}
+                  >
+                    {step.label}
+                  </p>
+                  <p className="mt-0.5 font-mono text-[10px] text-[color:var(--ink-soft)]">{step.detail}</p>
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function SuccessPanel({
+  commitmentId,
+  email,
+  redirectIn,
+}: {
+  commitmentId: string;
+  email: string;
+  redirectIn: number;
+}) {
+  const masked = maskEmail(email);
+
+  return (
+    <div className="mt-6 space-y-5 veil-reveal">
+      <div className="rounded-xl border border-[color:var(--accent)] bg-[rgba(42,195,222,0.08)] p-5">
+        <div className="flex items-center gap-3 text-[color:var(--accent)]">
+          <CheckCircle2 className="h-7 w-7" aria-hidden />
+          <div>
+            <p className="text-sm font-bold uppercase tracking-[0.2em]">Credentials verified</p>
+            <p className="mt-1 text-xs text-[color:var(--ink-soft)]">OTP accepted · eligibility confirmed</p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <StatCard label="Verified as" value={masked} />
+          <StatCard label="Commitment" value={commitmentId} mono />
+        </div>
+
+        <p className="mt-4 text-sm leading-6 text-[color:var(--ink-soft)]">
+          Your email was used only for OTP simulation. Admins will see eligibility proof, not your address.
+        </p>
+      </div>
+
+      <div className="flex items-center justify-between rounded-lg border border-[color:var(--stroke)] bg-[color:var(--night-2)] px-4 py-3">
+        <p className="text-sm font-semibold text-[color:var(--ink)]">Opening protected complaint flow</p>
+        <span className="rounded-full border border-[color:var(--accent)] px-3 py-1 text-xs font-bold text-[color:var(--accent)]">
+          {redirectIn}s
+        </span>
+      </div>
+
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+        <div
+          className="h-full rounded-full bg-[linear-gradient(90deg,#2ac3de,#7aa2f7)] transition-all duration-1000 ease-linear"
+          style={{ width: `${((REDIRECT_SECONDS - redirectIn) / REDIRECT_SECONDS) * 100}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="rounded-lg border border-[color:var(--stroke)] bg-[color:var(--night-2)] p-3">
+      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--accent-2)]">{label}</p>
+      <p className={`mt-1 text-sm font-semibold text-[color:var(--ink-strong)] ${mono ? "break-all font-mono text-xs" : ""}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function InfoTile({
+  Icon,
+  label,
+  value,
+}: {
+  Icon: typeof Shield;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex gap-3 rounded-xl border border-[color:var(--stroke)] bg-[color:var(--night-2)]/80 p-3 backdrop-blur-sm">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[color:var(--stroke)] text-[color:var(--accent)]">
+        <Icon className="h-4 w-4" aria-hidden />
+      </span>
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--accent-2)]">{label}</p>
+        <p className="mt-0.5 text-xs leading-5 text-[color:var(--ink-soft)]">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function getFormatChecks(email: string): FormatCheck[] {
+  if (!email) {
+    return [];
+  }
+
+  const local = email.split("@")[0] ?? "";
+
+  return [
+    { label: "Valid address before @", ok: local.length >= 3 },
+    { label: `Ends with ${KLU_EMAIL_SUFFIX}`, ok: email.endsWith(KLU_EMAIL_SUFFIX) },
+    { label: "Institutional format accepted", ok: KLU_EMAIL_PATTERN.test(email) },
+  ];
+}
+
+function generateOtp() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function commitmentFromEmail(email: string) {
+  let hash = 0;
+  for (let index = 0; index < email.length; index += 1) {
+    hash = (hash * 31 + email.charCodeAt(index)) >>> 0;
+  }
+  return `0x${hash.toString(16).padStart(8, "0")}…`;
+}
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function maskEmail(email: string) {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) {
+    return email;
+  }
+  if (local.length <= 5) {
+    return `${local.slice(0, 2)}***@${domain}`;
+  }
+  return `${local.slice(0, 2)}${"X".repeat(Math.min(local.length - 5, 7))}${local.slice(-3)}@${domain}`;
+}
+
+function GlowOrb({ className, fromAmber }: { className?: string; fromAmber?: boolean }) {
+  const gradient = fromAmber
+    ? "bg-[radial-gradient(circle_at_top,_rgba(224,175,104,0.28),_transparent_65%)]"
+    : "bg-[radial-gradient(circle_at_top,_rgba(42,195,222,0.35),_transparent_65%)]";
+
+  return (
+    <div
+      className={`pointer-events-none absolute h-48 w-48 rounded-full blur-2xl veil-float ${gradient} ${className ?? ""}`}
+      aria-hidden
+    />
   );
 }

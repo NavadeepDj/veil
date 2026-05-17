@@ -35,7 +35,7 @@ export default function HomeEntryPage() {
               <div className="text-center">
                 <h2 className="font-display text-2xl text-[color:var(--ink-strong)]">Verify your identity</h2>
                 <p className="mt-2 text-sm leading-6 text-[color:var(--ink-soft)]">
-                  Sign in with your institutional email to continue. This step simulates KLU student verification.
+                  Sign in with your @klu.ac.in email. We will send a one-time code, then verify your student credentials.
                 </p>
               </div>
 
