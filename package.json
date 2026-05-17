@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:midnight": "vitest run tests/veil-midnight.test.ts"
+    "test:midnight": "vitest run tests/veil-midnight.test.ts",
+    "postinstall": "node scripts/patch-midnight-packages.mjs",
+    "deploy:local": "npx --yes tsx scripts/deploy.ts"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-js": "^2.5.0",
@@ -45,6 +47,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/ws": "^8.18.1",
     "babel-plugin-react-compiler": "1.0.0",
     "cross-env": "^10.1.0",
     "eslint": "^9",

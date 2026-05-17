@@ -21,21 +21,29 @@ The demo focuses on one memorable interaction: the system verifies that the repo
 
 ## Current Scope
 
-This base version uses a mock Midnight proof flow so the product demo works end to end first. Complaint redaction and triage now run through a local API route at `/api/process-complaint`, giving the app a real privacy-processing boundary before admin review. The contract-shaped state is represented in the UI:
+Complaint redaction and triage run through `/api/process-complaint`. The main UI calls Midnight devnet APIs for on-chain proof registration, complaint hash logging, and selective disclosure state.
 
-- `studentCommitment`
-- `proofVerified`
-- `complaintHash`
-- `disclosureState`
+Raw complaint text is never stored on-chain — only commitments, hashes, proof flags, and disclosure state.
 
-Raw complaint text is not intended to be stored on-chain. A real Midnight integration should store commitments, hashes, permission states, and verification results only.
+## Midnight Devnet (local)
 
+1. Start the stack:
 
-## Midnight DApp Status
+```bash
+docker compose up -d
+```
 
-Veil is currently dApp-shaped with a mock Midnight UI and a first Compact contract source in `contracts/veil.compact`. The contract is intentionally small and only models public/provable privacy metadata: student commitment, proof status, complaint hash, disclosure state, and case counter.
+2. Deploy the contract and write `.env.local`:
 
-The contract is not compiled in this workspace yet. On Windows, `compact --version` may resolve to the built-in NTFS compression utility. Install the real Midnight Compact compiler and ensure it is first on `PATH` before compiling.
+```bash
+npm run deploy:local
+```
+
+Run `npm install` once so `postinstall` patches `@midnight-ntwrk/compact-js` (its `package.json` points at a missing CJS file). If `npm run deploy:local` still fails on **Node 24** with a `tslib` error, use **Node 20 LTS** for Midnight scripts, or deploy via the app: start `npm run dev`, open `http://localhost:3000/api/deploy`, then restart dev. From WSL, use Node/npm either fully in WSL or fully on Windows — not mixed.
+
+3. Use the home page — credential, proof, complaint submit, and reveal buttons submit real contract transactions when the banner shows **Midnight live**.
+
+Contract source: `contracts/veil.compact` (compiled output in `contracts/managed/veil/`).
 ## Optional Midnight Skills
 
 Midnight skills are local agent reference material and are not committed to the app source. To install them locally, run:

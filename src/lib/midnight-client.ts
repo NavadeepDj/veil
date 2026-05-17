@@ -38,8 +38,12 @@ import { fileURLToPath } from 'node:url';
 import * as Rx from 'rxjs';
 import { Buffer } from 'buffer';
 
-import { Contract, ledger, type Ledger } from '../../contracts/index.js';
-import { type NetworkConfig, LOCAL_CONFIG } from './config.js';
+import { Contract, ledger, type Ledger } from '../../contracts';
+import { type NetworkConfig, LOCAL_CONFIG } from './config';
+
+export const VEIL_PRIVATE_STATE_ID = 'veilPrivateState';
+export const VEIL_PRIVATE_STORE = 'veil-private-store-v1';
+export const VEIL_ACCOUNT_ID = 'veil-demo-account';
 
 // Node.js needs this for GraphQL subscriptions
 // @ts-expect-error global WebSocket
@@ -102,7 +106,8 @@ export async function buildHeadlessWallet(
     indexerClientConnection: indexerConn,
     provingServerUrl: proofURL,
     relayURL,
-  }).startWithSecretKeys(shieldedSecretKeys);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any).startWithSecretKeys(shieldedSecretKeys);
 
   const unshieldedWallet = UnshieldedWallet({
     networkId: getNetworkId(),
@@ -113,13 +118,14 @@ export async function buildHeadlessWallet(
   const dustWallet = DustWallet({
     networkId: getNetworkId(),
     costParameters: {
-      additionalFeeOverhead: 300_000_000_000_000n,
+      additionalFeeOverhead: BigInt('300000000000000'),
       feeBlocksMargin: 5,
     },
     indexerClientConnection: indexerConn,
     provingServerUrl: proofURL,
     relayURL,
-  }).startWithSecretKey(dustSecretKey, LedgerParameters.initialParameters().dust);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any).startWithSecretKey(dustSecretKey, LedgerParameters.initialParameters().dust);
 
   const walletConfig = {
     networkId: getNetworkId(),
@@ -128,7 +134,7 @@ export async function buildHeadlessWallet(
     relayURL,
     txHistoryStorage: new InMemoryTransactionHistoryStorage(),
     costParameters: {
-      additionalFeeOverhead: 300_000_000_000_000n,
+      additionalFeeOverhead: BigInt('300000000000000'),
       feeBlocksMargin: 5,
     },
   };
@@ -181,11 +187,12 @@ export function buildVeilProviders(
   const zkConfigProvider = new NodeZkConfigProvider<VeilCircuits>(zkConfigPath);
   return {
     privateStateProvider: levelPrivateStateProvider({
-      privateStateStoreName: `veil-${Date.now()}`,
+      privateStateStoreName: VEIL_PRIVATE_STORE,
       walletProvider: wallet,
       privateStoragePasswordProvider: () => 'veil#pwdQ2$pL8@nR5!vW3*xK9m',
-      accountId: `veil-account-${Date.now()}`,
-    }),
+      accountId: VEIL_ACCOUNT_ID,
+      // SDK types lag the runtime config shape for local devnet
+    } as never),
     publicDataProvider: indexerPublicDataProvider(config.indexer, config.indexerWS),
     zkConfigProvider,
     proofProvider: httpClientProofProvider(config.proofServer, zkConfigProvider),
@@ -205,10 +212,14 @@ export interface VeilContractClient {
   approveCommitteeReveal: () => Promise<void>;
 }
 
-export async function deployVeilContract(providers: VeilProviders): Promise<VeilContractClient> {
+export async function deployVeilContract(
+  providers: VeilProviders,
+  networkId: string = LOCAL_CONFIG.networkId,
+): Promise<VeilContractClient> {
+  setNetworkId(networkId);
   const deployed = await (deployContract as any)(providers, {
     compiledContract: CompiledVeilContract,
-    privateStateId: 'veilPrivateState',
+    privateStateId: VEIL_PRIVATE_STATE_ID,
     initialPrivateState: {},
     args: [],
   });
@@ -233,7 +244,7 @@ function makeClient(providers: VeilProviders, contractAddress: string): VeilCont
       await (submitCallTx as any)(providers, {
         compiledContract: CompiledVeilContract,
         contractAddress,
-        privateStateId: 'veilPrivateState',
+        privateStateId: VEIL_PRIVATE_STATE_ID,
         circuitId: 'registerStudentCommitment',
         args: [commitment],
       });
@@ -242,7 +253,7 @@ function makeClient(providers: VeilProviders, contractAddress: string): VeilCont
       await (submitCallTx as any)(providers, {
         compiledContract: CompiledVeilContract,
         contractAddress,
-        privateStateId: 'veilPrivateState',
+        privateStateId: VEIL_PRIVATE_STATE_ID,
         circuitId: 'logComplaint',
         args: [complaintHash],
       });
@@ -251,7 +262,7 @@ function makeClient(providers: VeilProviders, contractAddress: string): VeilCont
       await (submitCallTx as any)(providers, {
         compiledContract: CompiledVeilContract,
         contractAddress,
-        privateStateId: 'veilPrivateState',
+        privateStateId: VEIL_PRIVATE_STATE_ID,
         circuitId: 'requestReveal',
         args: [],
       });
@@ -260,7 +271,7 @@ function makeClient(providers: VeilProviders, contractAddress: string): VeilCont
       await (submitCallTx as any)(providers, {
         compiledContract: CompiledVeilContract,
         contractAddress,
-        privateStateId: 'veilPrivateState',
+        privateStateId: VEIL_PRIVATE_STATE_ID,
         circuitId: 'approveCommitteeReveal',
         args: [],
       });

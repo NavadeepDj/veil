@@ -5,6 +5,7 @@ export type NetworkConfig = {
   node: string;
   nodeWS: string;
   proofServer: string;
+  /** Optional local faucet (not in default compose.yml). Genesis seed wallet often has funds without it. */
   faucet: string;
 };
 
