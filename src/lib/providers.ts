@@ -23,7 +23,7 @@ export function buildProviders(
       walletProvider: wallet,
       privateStoragePasswordProvider: () => 'veil#pwdQ2$pL8@nR5!vW3*',
       accountId: `test-account-${Date.now()}`,
-    }),
+    } as never),
     publicDataProvider: indexerPublicDataProvider(
       config.indexer,
       config.indexerWS,

@@ -21,6 +21,14 @@ import {
 import * as Rx from 'rxjs';
 import type { Logger } from 'pino';
 
+function logInfo(logger: Logger | typeof console, message: string) {
+  if (logger === console) {
+    console.log(message);
+    return;
+  }
+  (logger as Logger).info(message);
+}
+
 export class MidnightWalletProvider implements MidnightProvider, WalletProvider {
   readonly wallet: WalletFacade;
 
@@ -61,7 +69,7 @@ export class MidnightWalletProvider implements MidnightProvider, WalletProvider 
   }
 
   async start(): Promise<void> {
-    this.logger.info?.('Starting wallet...') || console.log('Starting wallet...');
+    logInfo(this.logger, 'Starting wallet...');
     await this.wallet.start(this.zswapSecretKeys, this.dustSecretKey);
   }
 
@@ -93,7 +101,7 @@ export class MidnightWalletProvider implements MidnightProvider, WalletProvider 
       };
     };
 
-    logger.info?.(`Wallet built from seed: ${seeds.masterSeed.slice(0, 8)}...`) || console.log(`Wallet built from seed: ${seeds.masterSeed.slice(0, 8)}...`);
+    logInfo(logger, `Wallet built from seed: ${seeds.masterSeed.slice(0, 8)}...`);
 
     return new MidnightWalletProvider(
       logger,
@@ -120,7 +128,7 @@ export async function syncWallet(
   wallet: WalletFacade,
   timeout = 300_000,
 ): Promise<FacadeState> {
-  logger.info?.('Syncing wallet...') || console.log('Syncing wallet...');
+  logInfo(logger, 'Syncing wallet...');
   let emissionCount = 0;
   return Rx.firstValueFrom(
     wallet.state().pipe(
@@ -129,9 +137,10 @@ export async function syncWallet(
         const shielded = isProgressStrictlyComplete(state.shielded.state.progress);
         const unshielded = isProgressStrictlyComplete(state.unshielded.progress);
         const dust = isProgressStrictlyComplete(state.dust.state.progress);
-        logger.info?.(
+        logInfo(
+          logger,
           `Wallet sync [${emissionCount}]: shielded=${shielded}, unshielded=${unshielded}, dust=${dust}`,
-        ) || console.log(`Wallet sync [${emissionCount}]: shielded=${shielded}, unshielded=${unshielded}, dust=${dust}`);
+        );
       }),
       Rx.filter(
         (state: FacadeState) =>
@@ -139,7 +148,7 @@ export async function syncWallet(
           isProgressStrictlyComplete(state.dust.state.progress) &&
           isProgressStrictlyComplete(state.unshielded.progress),
       ),
-      Rx.tap(() => logger.info?.(`Wallet sync complete after ${emissionCount} emissions`) || console.log(`Wallet sync complete after ${emissionCount} emissions`)),
+      Rx.tap(() => logInfo(logger, `Wallet sync complete after ${emissionCount} emissions`)),
       Rx.timeout({
         each: timeout,
         with: () =>
@@ -148,7 +157,11 @@ export async function syncWallet(
           ),
       }),
       Rx.catchError((err) => {
-        logger.error?.(`Wallet sync error: ${err}`) || console.error(`Wallet sync error: ${err}`);
+        if (logger === console) {
+          console.error(`Wallet sync error: ${err}`);
+        } else {
+          (logger as Logger).error(`Wallet sync error: ${err}`);
+        }
         return Rx.throwError(() => err);
       }),
     ),

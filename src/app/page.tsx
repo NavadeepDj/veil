@@ -1,8 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { emptyProcessedComplaint, type ProcessedComplaint } from "@/lib/complaint-processing";
-import { disclosureStateLabel, disclosureStates } from "@/lib/veil-contract";
+import {
+  approveCommitteeRevealOnChain,
+  fetchMidnightStatus,
+  logComplaintOnChain,
+  registerStudentCommitmentOnChain,
+  requestRevealOnChain,
+} from "@/lib/midnight-api";
+import { issueStudentCredential } from "@/lib/student-credential";
+import {
+  disclosureStateLabel,
+  emptyVeilContractSnapshot,
+  syncUiFromLedger,
+  truncateHex,
+  type VeilContractSnapshot,
+} from "@/lib/veil-contract";
 
 const sampleComplaint =
   "My name is Priya Nair, roll number CSE-22-104. Professor Kumar from CSE-A threatened to fail me after I refused to meet him alone after class. Please do not reveal my identity because I am scared this will affect my grades.";
@@ -10,6 +24,7 @@ const sampleComplaint =
 export default function Home() {
   const [credentialIssued, setCredentialIssued] = useState(false);
   const [proofGenerated, setProofGenerated] = useState(false);
+  const [localCommitment, setLocalCommitment] = useState("");
   const [complaint, setComplaint] = useState(sampleComplaint);
   const [processed, setProcessed] = useState<ProcessedComplaint>(() => emptyProcessedComplaint());
   const [submitted, setSubmitted] = useState(false);
@@ -18,15 +33,92 @@ export default function Home() {
   const [privacyBoundary, setPrivacyBoundary] = useState("Ready to process only after proof verification.");
   const [revealRequested, setRevealRequested] = useState(false);
   const [committeeAccessGranted, setCommitteeAccessGranted] = useState(false);
-  const identityRevealed = committeeAccessGranted;
-  const disclosureState = identityRevealed
-    ? disclosureStates.committeeOnly
-    : revealRequested
-      ? disclosureStates.studentRequested
-      : disclosureStates.hidden;
+  const [chainLedger, setChainLedger] = useState<VeilContractSnapshot>(() => ({ ...emptyVeilContractSnapshot }));
+  const [midnightConfigured, setMidnightConfigured] = useState(false);
+  const [midnightHint, setMidnightHint] = useState("");
+  const [contractAddress, setContractAddress] = useState("");
+  const [chainBusy, setChainBusy] = useState(false);
+  const [midnightError, setMidnightError] = useState("");
+  const [statusLoading, setStatusLoading] = useState(true);
 
-  const canSubmit = credentialIssued && proofGenerated && complaint.trim().length > 30 && !processing;
+  const identityRevealed = committeeAccessGranted;
+  const disclosureState = chainLedger.disclosureState;
+  const canSubmit =
+    credentialIssued && proofGenerated && complaint.trim().length > 30 && !processing && !chainBusy;
   const proofMomentReady = credentialIssued && proofGenerated;
+  const displayError = processingError || midnightError;
+
+  const applyLedger = useCallback((ledger: VeilContractSnapshot) => {
+    setChainLedger(ledger);
+    const synced = syncUiFromLedger(ledger);
+    setCredentialIssued(synced.credentialIssued);
+    setProofGenerated(synced.proofGenerated);
+    setRevealRequested(synced.revealRequested);
+    setCommitteeAccessGranted(synced.committeeAccessGranted);
+    if (synced.submitted) {
+      setSubmitted(true);
+    }
+  }, []);
+
+  const refreshMidnightStatus = useCallback(async () => {
+    const status = await fetchMidnightStatus();
+    setMidnightConfigured(status.configured);
+    setMidnightHint(status.hint ?? "");
+    setContractAddress(status.contractAddress ?? "");
+    if (status.ledger) {
+      applyLedger(status.ledger);
+    }
+    if (status.error) {
+      setMidnightError(status.error);
+    }
+  }, [applyLedger]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        await refreshMidnightStatus();
+      } catch (error) {
+        setMidnightError(error instanceof Error ? error.message : "Unable to reach Midnight status API.");
+      } finally {
+        setStatusLoading(false);
+      }
+    })();
+  }, [refreshMidnightStatus]);
+
+  async function handleIssueCredential() {
+    setMidnightError("");
+    setProcessingError("");
+    const credential = await issueStudentCredential();
+    setLocalCommitment(credential.commitment);
+    setCredentialIssued(true);
+    setProofGenerated(false);
+    setPrivacyBoundary("Private credential issued locally. Register commitment on Midnight next.");
+  }
+
+  async function handleGenerateProof() {
+    if (!localCommitment) {
+      setMidnightError("Issue a credential before generating the on-chain proof.");
+      return;
+    }
+
+    if (!midnightConfigured) {
+      setMidnightError("Deploy the Veil contract first (docker compose up, then /api/deploy).");
+      return;
+    }
+
+    setChainBusy(true);
+    setMidnightError("");
+
+    try {
+      const ledger = await registerStudentCommitmentOnChain(localCommitment);
+      applyLedger(ledger);
+      setPrivacyBoundary("Midnight proof verified on-chain. Student eligibility confirmed without identity reveal.");
+    } catch (error) {
+      setMidnightError(error instanceof Error ? error.message : "Unable to register student commitment on-chain.");
+    } finally {
+      setChainBusy(false);
+    }
+  }
 
   async function handleProtectedSubmit() {
     if (!canSubmit) {
@@ -35,6 +127,7 @@ export default function Home() {
 
     setProcessing(true);
     setProcessingError("");
+    setMidnightError("");
     setSubmitted(false);
     setRevealRequested(false);
     setCommitteeAccessGranted(false);
@@ -59,14 +152,70 @@ export default function Home() {
       }
 
       setProcessed(body.processed);
-      setPrivacyBoundary(body.privacyBoundary || "Sanitized case is ready for admin review.");
       setSubmitted(true);
+
+      if (midnightConfigured) {
+        setChainBusy(true);
+        try {
+          const ledger = await logComplaintOnChain(body.processed.complaintHash);
+          applyLedger(ledger);
+          setPrivacyBoundary("Sanitized case ready. Complaint hash logged on Midnight.");
+        } catch (error) {
+          setMidnightError(error instanceof Error ? error.message : "On-chain complaint log failed.");
+          setPrivacyBoundary(
+            body.privacyBoundary ||
+              "Sanitized locally, but Midnight log failed. Check devnet and wallet funds.",
+          );
+        } finally {
+          setChainBusy(false);
+        }
+      } else {
+        setPrivacyBoundary(body.privacyBoundary || "Sanitized case is ready for admin review (off-chain demo).");
+      }
     } catch (error) {
       setProcessed(emptyProcessedComplaint());
       setProcessingError(error instanceof Error ? error.message : "Unable to process complaint privately.");
       setPrivacyBoundary("Processing failed before any admin case was created.");
     } finally {
       setProcessing(false);
+    }
+  }
+
+  async function handleRequestReveal() {
+    if (!submitted || !midnightConfigured) {
+      return;
+    }
+
+    setChainBusy(true);
+    setMidnightError("");
+
+    try {
+      const ledger = await requestRevealOnChain();
+      applyLedger(ledger);
+      setPrivacyBoundary("Student requested committee-only reveal on Midnight.");
+    } catch (error) {
+      setMidnightError(error instanceof Error ? error.message : "Unable to request reveal on-chain.");
+    } finally {
+      setChainBusy(false);
+    }
+  }
+
+  async function handleApproveReveal() {
+    if (!revealRequested || !midnightConfigured) {
+      return;
+    }
+
+    setChainBusy(true);
+    setMidnightError("");
+
+    try {
+      const ledger = await approveCommitteeRevealOnChain();
+      applyLedger(ledger);
+      setPrivacyBoundary("Committee reveal approved on Midnight.");
+    } catch (error) {
+      setMidnightError(error instanceof Error ? error.message : "Unable to approve committee reveal on-chain.");
+    } finally {
+      setChainBusy(false);
     }
   }
 
@@ -87,6 +236,14 @@ export default function Home() {
           </div>
         </header>
 
+        <MidnightStatusBanner
+          chainBusy={chainBusy}
+          configured={midnightConfigured}
+          contractAddress={contractAddress}
+          hint={midnightHint}
+          loading={statusLoading}
+        />
+
         <MagicMoment
           identityRevealed={identityRevealed}
           processing={processing}
@@ -106,20 +263,25 @@ export default function Home() {
               </div>
               <button
                 className="h-11 w-full rounded-md bg-[color:var(--accent)] px-4 text-sm font-bold text-[color:var(--night-1)] transition hover:bg-[#3dd6ef] disabled:cursor-not-allowed disabled:bg-[color:var(--stroke)] disabled:text-[color:var(--ink-soft)]"
-                onClick={() => setCredentialIssued(true)}
+                disabled={chainBusy || credentialIssued}
+                onClick={() => void handleIssueCredential()}
                 type="button"
               >
                 Issue Private Student Credential
               </button>
               <button
                 className="h-11 w-full rounded-md border border-[color:var(--accent)] bg-transparent px-4 text-sm font-bold text-[color:var(--accent)] transition hover:bg-[rgba(42,195,222,0.12)] disabled:cursor-not-allowed disabled:border-[color:var(--stroke)] disabled:text-[color:var(--ink-soft)]"
-                disabled={!credentialIssued}
-                onClick={() => setProofGenerated(true)}
+                disabled={!credentialIssued || chainBusy || proofGenerated}
+                onClick={() => void handleGenerateProof()}
                 type="button"
               >
-                Generate Midnight Proof
+                {chainBusy ? "Submitting to Midnight..." : "Generate Midnight Proof"}
               </button>
-              <ProofLedger credentialIssued={credentialIssued} proofGenerated={proofGenerated} />
+              <ProofLedger
+                commitment={localCommitment}
+                credentialIssued={credentialIssued}
+                proofGenerated={proofGenerated}
+              />
             </div>
           </Panel>
 
@@ -145,32 +307,32 @@ export default function Home() {
                 <button
                   className="min-h-11 rounded-md bg-[color:var(--accent)] px-4 py-2 text-sm font-bold text-[color:var(--night-1)] transition hover:bg-[#3dd6ef] disabled:cursor-not-allowed disabled:bg-[color:var(--stroke)] disabled:text-[color:var(--ink-soft)]"
                   disabled={!canSubmit}
-                  onClick={handleProtectedSubmit}
+                  onClick={() => void handleProtectedSubmit()}
                   type="button"
                 >
-                  {processing ? "Processing Privately" : "Submit Protected Complaint"}
+                  {processing || chainBusy ? "Processing Privately" : "Submit Protected Complaint"}
                 </button>
                 <button
                   className="min-h-11 rounded-md border border-[color:var(--accent-3)] px-4 py-2 text-sm font-bold text-[color:var(--accent-3)] transition hover:bg-[rgba(247,118,142,0.12)] disabled:cursor-not-allowed disabled:border-[color:var(--stroke)] disabled:text-[color:var(--ink-soft)]"
-                  disabled={!submitted || revealRequested}
-                  onClick={() => setRevealRequested(true)}
+                  disabled={!submitted || revealRequested || chainBusy || !midnightConfigured}
+                  onClick={() => void handleRequestReveal()}
                   type="button"
                 >
-                  {revealRequested ? "Reveal Requested" : "Request Reveal"}
+                  {chainBusy ? "On-chain..." : revealRequested ? "Reveal Requested" : "Request Reveal"}
                 </button>
                 <button
                   className="min-h-11 rounded-md border border-[color:var(--ink-soft)] px-4 py-2 text-sm font-bold text-[color:var(--ink)] transition hover:bg-[color:var(--night-4)] disabled:cursor-not-allowed disabled:border-[color:var(--stroke)] disabled:text-[color:var(--ink-soft)]"
-                  disabled={!revealRequested || identityRevealed}
-                  onClick={() => setCommitteeAccessGranted(true)}
+                  disabled={!revealRequested || identityRevealed || chainBusy || !midnightConfigured}
+                  onClick={() => void handleApproveReveal()}
                   type="button"
                 >
-                  {identityRevealed ? "Access Granted" : "Approve Committee Reveal"}
+                  {chainBusy ? "On-chain..." : identityRevealed ? "Access Granted" : "Approve Committee Reveal"}
                 </button>
               </div>
               <div className="rounded-md border border-[color:var(--stroke)] bg-[color:var(--night-2)] p-3">
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-[color:var(--accent-2)]">Privacy boundary</p>
                 <p className="mt-1 text-sm font-semibold leading-6 text-[color:var(--ink)]">
-                  {processingError || privacyBoundary}
+                  {displayError || privacyBoundary}
                 </p>
               </div>
             </div>
@@ -219,14 +381,23 @@ export default function Home() {
 
           <Panel title="Midnight Contract Shape">
             <div className="space-y-3 font-mono text-xs text-[color:var(--ink-soft)]">
-              <LedgerLine label="studentCommitment" value={credentialIssued ? "0x91ab...valid" : "pending"} />
-              <LedgerLine label="proofVerified" value={proofGenerated ? "true" : "false"} />
-              <LedgerLine label="latestComplaintHash" value={submitted ? processed.complaintHash : "pending"} />
-              <LedgerLine label="caseCounter" value={submitted ? "1" : "0"} />
               <LedgerLine
-                label="disclosureState"
-                value={disclosureStateLabel(disclosureState)}
+                label="studentCommitment"
+                value={truncateHex(chainLedger.studentCommitment)}
               />
+              <LedgerLine label="proofVerified" value={chainLedger.proofVerified ? "true" : "false"} />
+              <LedgerLine
+                label="latestComplaintHash"
+                value={
+                  chainLedger.latestComplaintHash !== "pending"
+                    ? truncateHex(chainLedger.latestComplaintHash)
+                    : submitted
+                      ? truncateHex(processed.complaintHash)
+                      : "pending"
+                }
+              />
+              <LedgerLine label="caseCounter" value={String(chainLedger.caseCounter)} />
+              <LedgerLine label="disclosureState" value={disclosureStateLabel(disclosureState)} />
               <LedgerLine label="revealPolicy" value="student_consent + committee_scope" />
               <DisclosureTimeline
                 identityRevealed={identityRevealed}
@@ -470,11 +641,67 @@ function StatusPill({ label, active }: { label: string; active: boolean }) {
   );
 }
 
-function ProofLedger({ credentialIssued, proofGenerated }: { credentialIssued: boolean; proofGenerated: boolean }) {
+function MidnightStatusBanner({
+  loading,
+  configured,
+  contractAddress,
+  hint,
+  chainBusy,
+}: {
+  loading: boolean;
+  configured: boolean;
+  contractAddress: string;
+  hint: string;
+  chainBusy: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="rounded-md border border-[color:var(--stroke)] bg-[color:var(--night-2)] px-4 py-3 text-sm text-[color:var(--ink-soft)]">
+        Connecting to Midnight devnet status...
+      </div>
+    );
+  }
+
+  if (configured) {
+    return (
+      <div className="rounded-md border border-[color:var(--accent)] bg-[rgba(42,195,222,0.08)] px-4 py-3 text-sm text-[color:var(--ink)]">
+        <span className="font-bold text-[color:var(--accent)]">Midnight live</span>
+        <span className="mx-2 text-[color:var(--ink-soft)]">·</span>
+        <span className="font-mono text-xs break-all">{contractAddress}</span>
+        {chainBusy ? <span className="ml-2 text-[color:var(--accent-2)]">(transaction in progress)</span> : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md border border-[color:var(--accent-2)] bg-[rgba(224,175,104,0.08)] px-4 py-3 text-sm leading-6 text-[color:var(--ink)]">
+      <p className="font-bold text-[color:var(--accent-2)]">Midnight devnet not linked</p>
+      <p className="mt-1 text-[color:var(--ink-soft)]">
+        {hint || "Run docker compose up -d, deploy the contract, then restart npm run dev."}
+      </p>
+      <p className="mt-2 font-mono text-xs text-[color:var(--ink-soft)]">
+        docker compose up -d → GET /api/deploy (or npm run deploy:local)
+      </p>
+    </div>
+  );
+}
+
+function ProofLedger({
+  credentialIssued,
+  proofGenerated,
+  commitment,
+}: {
+  credentialIssued: boolean;
+  proofGenerated: boolean;
+  commitment: string;
+}) {
   return (
     <div className="rounded-md border border-[color:var(--stroke)] bg-[color:var(--night-4)] p-4 font-mono text-xs text-[color:var(--ink-soft)]">
       <p>{credentialIssued ? "> credential commitment created" : "> awaiting school credential"}</p>
-      <p className="mt-2">{proofGenerated ? "> proof verified without identity reveal" : "> proof not generated"}</p>
+      <p className="mt-2 break-all">
+        {commitment ? `> commitment ${truncateHex(commitment)}` : "> commitment pending"}
+      </p>
+      <p className="mt-2">{proofGenerated ? "> proof verified on Midnight" : "> proof not on-chain yet"}</p>
     </div>
   );
 }
