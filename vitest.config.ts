@@ -12,5 +12,8 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    testTimeout: 300_000,   // 5 min — ZK proof generation is slow
+    hookTimeout: 300_000,
+    sequence: { concurrent: false },
   },
 });
