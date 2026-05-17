@@ -96,6 +96,19 @@ textarea {
   }
 }
 
+@keyframes veil-modal-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+.veil-modal-progress {
+  animation: veil-modal-progress 1.4s ease-in-out infinite;
+}
+
 .veil-float {
   animation: veil-float 8s ease-in-out infinite;
 }

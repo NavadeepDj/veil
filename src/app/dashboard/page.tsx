@@ -3,12 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { emptyProcessedComplaint, type ProcessedComplaint } from "@/lib/complaint-processing";
-import {
-  approveCommitteeRevealOnChain,
-  fetchMidnightStatus,
-  logComplaintOnChain,
-  requestRevealOnChain,
-} from "@/lib/midnight-api";
+import { fetchMidnightStatus, logComplaintOnChain, requestRevealOnChain } from "@/lib/midnight-api";
 import { issueStudentCredentialFromId } from "@/lib/student-credential";
 import {
   disclosureStateLabel,
@@ -18,7 +13,15 @@ import {
   truncateHex,
   type VeilContractSnapshot,
 } from "@/lib/veil-contract";
-import { CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, X } from "lucide-react";
+
+type ProcessingModalPhase = "loading" | "results" | "error";
+
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
 
 const AUTO_ELIGIBILITY = true;
 
@@ -38,6 +41,8 @@ export default function Home() {
   const [processed, setProcessed] = useState<ProcessedComplaint>(() => emptyProcessedComplaint());
   const [complaintProcessed, setComplaintProcessed] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [processingModal, setProcessingModal] = useState<ProcessingModalPhase | null>(null);
+  const [revealConfirmOpen, setRevealConfirmOpen] = useState(false);
   const [processingError, setProcessingError] = useState("");
   const [privacyBoundary, setPrivacyBoundary] = useState("Ready to process only after proof verification.");
   const [revealRequested, setRevealRequested] = useState(false);
@@ -54,6 +59,8 @@ export default function Home() {
   const disclosureState = chainLedger.disclosureState;
   const canSubmit =
     credentialIssued && proofGenerated && complaint.trim().length > 30 && !processing && !chainBusy;
+  const canRequestReveal =
+    complaintProcessed && !revealRequested && (AUTO_ELIGIBILITY || midnightConfigured);
   const proofMomentReady = credentialIssued && proofGenerated;
   const displayError = processingError || midnightError;
 
@@ -152,8 +159,10 @@ export default function Home() {
     }
 
     setProcessing(true);
+    setProcessingModal("loading");
     setProcessingError("");
     setMidnightError("");
+    const startedAt = Date.now();
 
     try {
       const response = await fetch("/api/process-complaint", {
@@ -176,36 +185,57 @@ export default function Home() {
 
       setProcessed(body.processed);
       setComplaintProcessed(true);
+      setPrivacyBoundary(body.privacyBoundary || "Sanitized case is ready for admin review.");
+
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < 1_400) {
+        await delay(1_400 - elapsed);
+      }
+      setProcessingModal("results");
 
       if (midnightConfigured) {
-        setChainBusy(true);
-        try {
-          const ledger = await logComplaintOnChain(body.processed.complaintHash);
-          applyLedger(ledger);
-          setPrivacyBoundary("Sanitized case ready. Complaint hash logged on Midnight.");
-        } catch (error) {
-          setMidnightError(error instanceof Error ? error.message : "On-chain complaint log failed.");
-          setPrivacyBoundary(
-            body.privacyBoundary ||
-              "Sanitized locally, but Midnight log failed. Check devnet and wallet funds.",
-          );
-        } finally {
-          setChainBusy(false);
-        }
-      } else {
-        setPrivacyBoundary(body.privacyBoundary || "Sanitized case is ready for admin review.");
+        void (async () => {
+          setChainBusy(true);
+          try {
+            const ledger = await logComplaintOnChain(body.processed.complaintHash);
+            applyLedger(ledger);
+            setPrivacyBoundary("Sanitized case ready. Complaint hash logged on Midnight.");
+          } catch (error) {
+            setMidnightError(error instanceof Error ? error.message : "On-chain complaint log failed.");
+            setPrivacyBoundary(
+              body.privacyBoundary ||
+                "Sanitized locally, but Midnight log failed. Check devnet and wallet funds.",
+            );
+          } finally {
+            setChainBusy(false);
+          }
+        })();
       }
     } catch (error) {
       setProcessed(emptyProcessedComplaint());
       setProcessingError(error instanceof Error ? error.message : "Unable to process complaint privately.");
       setPrivacyBoundary("Processing failed before any admin case was created.");
+      setProcessingModal("error");
     } finally {
       setProcessing(false);
     }
   }
 
-  async function handleRequestReveal() {
-    if (!AUTO_ELIGIBILITY && !complaintProcessed) {
+  function openRevealConfirm() {
+    if (!canRequestReveal) {
+      return;
+    }
+
+    setRevealConfirmOpen(true);
+  }
+
+  async function confirmRequestReveal() {
+    setRevealConfirmOpen(false);
+    await executeRequestReveal();
+  }
+
+  async function executeRequestReveal() {
+    if (!complaintProcessed) {
       return;
     }
 
@@ -229,36 +259,6 @@ export default function Home() {
       setPrivacyBoundary("Student requested committee-only reveal on Midnight.");
     } catch (error) {
       setMidnightError(error instanceof Error ? error.message : "Unable to request reveal on-chain.");
-    } finally {
-      setChainBusy(false);
-    }
-  }
-
-  async function handleApproveReveal() {
-    if (!revealRequested) {
-      return;
-    }
-
-    if (AUTO_ELIGIBILITY && !midnightConfigured) {
-      setCommitteeAccessGranted(true);
-      setChainLedger((current) => ({ ...current, disclosureState: disclosureStates.committeeOnly }));
-      setPrivacyBoundary("Committee reveal approved.");
-      return;
-    }
-
-    if (!midnightConfigured) {
-      return;
-    }
-
-    setChainBusy(true);
-    setMidnightError("");
-
-    try {
-      const ledger = await approveCommitteeRevealOnChain();
-      applyLedger(ledger);
-      setPrivacyBoundary("Committee reveal approved on Midnight.");
-    } catch (error) {
-      setMidnightError(error instanceof Error ? error.message : "Unable to approve committee reveal on-chain.");
     } finally {
       setChainBusy(false);
     }
@@ -336,35 +336,32 @@ export default function Home() {
                   setComplaintProcessed(false);
                   setRevealRequested(false);
                   setCommitteeAccessGranted(false);
+                  setProcessingModal(null);
                   setProcessingError("");
                   setPrivacyBoundary("Complaint changed. Submit again to create a sanitized case.");
                 }}
                 value={complaint}
               />
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <button
                   className="min-h-11 rounded-md bg-[color:var(--accent)] px-4 py-2 text-sm font-bold text-[color:var(--night-1)] transition hover:bg-[#3dd6ef] disabled:cursor-not-allowed disabled:bg-[color:var(--stroke)] disabled:text-[color:var(--ink-soft)]"
-                  disabled={!canSubmit}
+                  disabled={!canSubmit || complaintProcessed}
                   onClick={() => void handleProtectedSubmit()}
                   type="button"
                 >
                   Submit Protected Complaint
                 </button>
                 <button
-                  className="min-h-11 rounded-md border border-[color:var(--accent-3)] px-4 py-2 text-sm font-bold text-[color:var(--accent-3)] transition hover:bg-[rgba(247,118,142,0.12)] disabled:cursor-not-allowed disabled:border-[color:var(--stroke)] disabled:text-[color:var(--ink-soft)]"
-                  disabled={revealRequested || chainBusy || (!AUTO_ELIGIBILITY && !midnightConfigured)}
-                  onClick={() => void handleRequestReveal()}
+                  className={`min-h-11 rounded-md border px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:border-[color:var(--stroke)] disabled:bg-transparent disabled:text-[color:var(--ink-soft)] ${
+                    canRequestReveal
+                      ? "border-[color:var(--accent-3)] text-[color:var(--accent-3)] hover:bg-[rgba(247,118,142,0.12)]"
+                      : "border-[color:var(--stroke)] text-[color:var(--ink-soft)]"
+                  }`}
+                  disabled={!canRequestReveal}
+                  onClick={openRevealConfirm}
                   type="button"
                 >
                   Request Reveal
-                </button>
-                <button
-                  className="min-h-11 rounded-md border border-[color:var(--ink-soft)] px-4 py-2 text-sm font-bold text-[color:var(--ink)] transition hover:bg-[color:var(--night-4)] disabled:cursor-not-allowed disabled:border-[color:var(--stroke)] disabled:text-[color:var(--ink-soft)]"
-                  disabled={!revealRequested || identityRevealed || chainBusy || (!AUTO_ELIGIBILITY && !midnightConfigured)}
-                  onClick={() => void handleApproveReveal()}
-                  type="button"
-                >
-                  Approve Committee Reveal
                 </button>
               </div>
               <div className="rounded-md border border-[color:var(--stroke)] bg-[color:var(--night-2)] p-3">
@@ -448,7 +445,261 @@ export default function Home() {
           </Panel>
         </section>
       </div>
+
+      {processingModal ? (
+        <ComplaintProcessingModal
+          errorMessage={processingError}
+          onClose={() => setProcessingModal(null)}
+          phase={processingModal}
+          processed={processed}
+        />
+      ) : null}
+
+      {revealConfirmOpen ? (
+        <RevealConfirmModal onCancel={() => setRevealConfirmOpen(false)} onContinue={() => void confirmRequestReveal()} />
+      ) : null}
     </main>
+  );
+}
+
+function RevealConfirmModal({
+  onContinue,
+  onCancel,
+}: {
+  onContinue: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(10,12,20,0.78)] p-4 backdrop-blur-sm"
+      role="presentation"
+      onClick={onCancel}
+    >
+      <div
+        aria-describedby="reveal-confirm-description"
+        aria-labelledby="reveal-confirm-title"
+        aria-modal="true"
+        className="relative w-full max-w-md overflow-hidden rounded-2xl border border-[color:var(--accent-3)]/40 bg-[linear-gradient(160deg,#1f2335_0%,#2a2230_55%,#1a2036_100%)] p-6 shadow-[0_32px_80px_-24px_rgba(0,0,0,0.85)]"
+        role="alertdialog"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[color:var(--accent-3)]/50 bg-[rgba(247,118,142,0.12)]">
+            <AlertTriangle className="h-5 w-5 text-[color:var(--accent-3)]" aria-hidden />
+          </div>
+          <div>
+            <h2 className="font-display text-xl text-[color:var(--ink-strong)]" id="reveal-confirm-title">
+              Reveal your identity?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[color:var(--ink-soft)]" id="reveal-confirm-description">
+              Your identity will be revealed to the committee reviewing this case. This cannot be undone from the
+              student view. Only continue if you are comfortable with committee-only disclosure.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <button
+            className="min-h-11 rounded-md border border-[color:var(--stroke)] bg-[color:var(--night-2)] px-4 text-sm font-bold text-[color:var(--ink)] transition hover:bg-[color:var(--night-4)]"
+            onClick={onCancel}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className="min-h-11 rounded-md border border-[color:var(--accent-3)] bg-[rgba(247,118,142,0.14)] px-4 text-sm font-bold text-[color:var(--accent-3)] transition hover:bg-[rgba(247,118,142,0.22)]"
+            onClick={onContinue}
+            type="button"
+          >
+            Continue
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ComplaintProcessingModal({
+  phase,
+  processed,
+  errorMessage,
+  onClose,
+}: {
+  phase: ProcessingModalPhase;
+  processed: ProcessedComplaint;
+  errorMessage: string;
+  onClose: () => void;
+}) {
+  const [revealedStep, setRevealedStep] = useState(0);
+
+  useEffect(() => {
+    if (phase !== "results") {
+      setRevealedStep(0);
+      return;
+    }
+
+    setRevealedStep(0);
+    const timers = [0, 1, 2, 3, 4].map((step, index) =>
+      window.setTimeout(() => setRevealedStep(step), index * 380),
+    );
+
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [phase, processed.complaintHash]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(10,12,20,0.72)] p-4 backdrop-blur-sm"
+      role="presentation"
+      onClick={phase === "loading" ? undefined : onClose}
+    >
+      <div
+        aria-labelledby="complaint-modal-title"
+        aria-modal="true"
+        className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-[color:var(--stroke)] bg-[linear-gradient(160deg,#1f2335_0%,#24283b_55%,#1a2036_100%)] p-6 shadow-[0_32px_80px_-24px_rgba(0,0,0,0.85)]"
+        role="dialog"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {phase !== "loading" ? (
+          <button
+            aria-label="Close"
+            className="absolute right-4 top-4 rounded-md p-1 text-[color:var(--ink-soft)] transition hover:bg-white/10 hover:text-[color:var(--ink-strong)]"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="h-5 w-5" aria-hidden />
+          </button>
+        ) : null}
+
+        {phase === "loading" ? (
+          <div className="flex flex-col items-center py-6 text-center">
+            <Loader2 className="h-12 w-12 animate-spin text-[color:var(--accent)]" aria-hidden />
+            <h2 className="mt-5 font-display text-2xl text-[color:var(--ink-strong)]" id="complaint-modal-title">
+              AI is processing your complaint
+            </h2>
+            <p className="mt-2 max-w-sm text-sm leading-6 text-[color:var(--ink-soft)]">
+              Redacting identifiers and building a sanitized case for admin review. Your identity stays private.
+            </p>
+            <div className="mt-8 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+              <div className="h-full w-1/3 veil-modal-progress rounded-full bg-[linear-gradient(90deg,#2ac3de,#7aa2f7)]" />
+            </div>
+          </div>
+        ) : null}
+
+        {phase === "error" ? (
+          <div className="py-2">
+            <h2 className="pr-8 font-display text-2xl text-[color:var(--accent-3)]" id="complaint-modal-title">
+              Processing failed
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-[color:var(--ink-soft)]">
+              {errorMessage || "Unable to process complaint privately."}
+            </p>
+            <button
+              className="mt-6 h-11 w-full rounded-md bg-[color:var(--accent)] text-sm font-bold text-[color:var(--night-1)] transition hover:bg-[#3dd6ef]"
+              onClick={onClose}
+              type="button"
+            >
+              Close
+            </button>
+          </div>
+        ) : null}
+
+        {phase === "results" ? (
+          <div className="py-1">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 h-7 w-7 shrink-0 text-[color:var(--accent)]" aria-hidden />
+              <div>
+                <h2 className="font-display text-2xl text-[color:var(--ink-strong)]" id="complaint-modal-title">
+                  Complaint processed
+                </h2>
+                <p className="mt-1 text-sm text-[color:var(--ink-soft)]">
+                  Sanitized case ready. Review what admins will see below.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-3">
+              <ModalResultRow
+                label="Category"
+                revealed={revealedStep >= 1}
+                value={processed.category}
+                tone="ink"
+              />
+              <ModalResultRow
+                label="Severity"
+                revealed={revealedStep >= 2}
+                tone={processed.severity === "Urgent" ? "danger" : "amber"}
+                value={processed.severity}
+              />
+              <ModalResultRow
+                label="Redactions"
+                revealed={revealedStep >= 3}
+                tone="teal"
+                value={`${processed.redactions.length} sensitive fields removed`}
+              />
+              <div
+                className={`rounded-md border border-[color:var(--stroke)] bg-[color:var(--night-2)] p-4 transition-all duration-500 ${
+                  revealedStep >= 4 ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
+                }`}
+              >
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[color:var(--accent-2)]">
+                  Sanitized summary
+                </p>
+                <p className="mt-2 text-sm leading-6 text-[color:var(--ink)]">{processed.summary}</p>
+                {processed.redactions.length > 0 && revealedStep >= 4 ? (
+                  <ul className="mt-3 space-y-1 border-t border-[color:var(--stroke)] pt-3">
+                    {processed.redactions.map((item) => (
+                      <li className="text-xs font-semibold text-[color:var(--ink-soft)]" key={item}>
+                        · {item}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            </div>
+
+            <button
+              className="mt-6 h-11 w-full rounded-md bg-[color:var(--accent)] text-sm font-bold text-[color:var(--night-1)] transition hover:bg-[#3dd6ef]"
+              onClick={onClose}
+              type="button"
+            >
+              Continue to dashboard
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function ModalResultRow({
+  label,
+  value,
+  tone,
+  revealed,
+}: {
+  label: string;
+  value: string;
+  tone: "ink" | "danger" | "amber" | "teal";
+  revealed: boolean;
+}) {
+  const tones = {
+    ink: "border-[color:var(--stroke)] text-[color:var(--ink)]",
+    danger: "border-[color:var(--accent-3)] text-[color:var(--accent-3)]",
+    amber: "border-[color:var(--accent-2)] text-[color:var(--accent-2)]",
+    teal: "border-[color:var(--accent)] text-[color:var(--accent)]",
+  };
+
+  return (
+    <div
+      className={`flex items-center justify-between gap-4 rounded-md border bg-[color:var(--night-2)] px-4 py-3 transition-all duration-500 ${
+        revealed ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
+      } ${tones[tone]}`}
+    >
+      <span className="text-xs font-bold uppercase tracking-[0.16em] opacity-80">{label}</span>
+      <span className="text-right text-sm font-bold">{value}</span>
+    </div>
   );
 }
 
