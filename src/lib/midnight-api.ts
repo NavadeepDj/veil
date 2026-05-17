@@ -36,9 +36,33 @@ async function postMidnight(path: string, body?: Record<string, string>): Promis
   return payload;
 }
 
-export async function fetchMidnightStatus(): Promise<MidnightStatusResponse> {
-  const response = await fetch('/api/midnight/status', { cache: 'no-store' });
-  return readJson<MidnightStatusResponse>(response);
+const defaultStatusTimeoutMs = 4_000;
+
+export async function fetchMidnightStatus(options?: { timeoutMs?: number }): Promise<MidnightStatusResponse> {
+  const timeoutMs = options?.timeoutMs ?? defaultStatusTimeoutMs;
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch('/api/midnight/status', {
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    return readJson<MidnightStatusResponse>(response);
+  } catch (error) {
+    const timedOut = error instanceof DOMException && error.name === 'AbortError';
+    return {
+      configured: false,
+      error: timedOut
+        ? 'Midnight status request timed out. Devnet may be offline.'
+        : error instanceof Error
+          ? error.message
+          : 'Unable to reach Midnight status API.',
+      hint: 'Start docker compose and devnet, or remove NEXT_PUBLIC_VEIL_CONTRACT_ADDRESS for local-only mode.',
+    };
+  } finally {
+    window.clearTimeout(timer);
+  }
 }
 
 export async function registerStudentCommitmentOnChain(commitment: string): Promise<VeilContractSnapshot> {

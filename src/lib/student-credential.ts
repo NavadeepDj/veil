@@ -18,3 +18,10 @@ export async function issueStudentCredential(): Promise<StudentCredential> {
   const commitment = await sha256Hex(`veil-student-credential:${credentialId}`);
   return { credentialId, commitment };
 }
+
+/** Deterministic credential derived from verified student id (no PII in commitment input). */
+export async function issueStudentCredentialFromId(studentId: string): Promise<StudentCredential> {
+  const safeId = studentId.trim() || "student";
+  const commitment = await sha256Hex(`veil-student-eligibility:${safeId}`);
+  return { credentialId: `student-${safeId}`, commitment };
+}

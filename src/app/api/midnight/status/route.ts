@@ -17,7 +17,12 @@ export async function GET() {
   }
 
   try {
-    const ledger = await readLedgerSnapshot();
+    const ledger = await Promise.race([
+      readLedgerSnapshot(),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Midnight ledger read timed out')), 3_000);
+      }),
+    ]);
     return NextResponse.json({ ...base, ledger });
   } catch (error) {
     return NextResponse.json({

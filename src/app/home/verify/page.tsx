@@ -20,8 +20,6 @@ import {
 const KLU_EMAIL_SUFFIX = "@klu.ac.in";
 const KLU_EMAIL_PATTERN = /^[a-z0-9][a-z0-9._-]*@klu\.ac\.in$/i;
 const EXAMPLE_EMAIL = "99XXXXXX389@klu.ac.in";
-const DEMO_EMAIL = "992104567389@klu.ac.in";
-const DEMO_OTP = "482916";
 const OTP_LENGTH = 6;
 const SIMULATION_STEPS = [
   { label: "Validating OTP with KLU directory", detail: "One-time code accepted · session bound" },
@@ -42,13 +40,11 @@ export default function VerifyIdentityPage() {
   const otpInputRef = useRef<HTMLInputElement>(null);
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
-  const [expectedOtp, setExpectedOtp] = useState("");
   const [phase, setPhase] = useState<Phase>("email");
   const [stepIndex, setStepIndex] = useState(0);
   const [error, setError] = useState("");
   const [redirectIn, setRedirectIn] = useState(REDIRECT_SECONDS);
   const [resendIn, setResendIn] = useState(0);
-  const [usedDemoEmail, setUsedDemoEmail] = useState(false);
 
   const trimmed = email.trim().toLowerCase();
   const isValidEmail = KLU_EMAIL_PATTERN.test(trimmed);
@@ -87,7 +83,7 @@ export default function VerifyIdentityPage() {
     const tick = window.setInterval(() => {
       setRedirectIn((current) => {
         if (current <= 1) {
-          router.push("/");
+          router.push("/dashboard");
           return 0;
         }
         return current - 1;
@@ -109,8 +105,6 @@ export default function VerifyIdentityPage() {
     setPhase("sendingOtp");
     await delay(1400);
 
-    const code = usedDemoEmail ? DEMO_OTP : generateOtp();
-    setExpectedOtp(code);
     setOtp("");
     setResendIn(30);
     setPhase("otp");
@@ -120,8 +114,8 @@ export default function VerifyIdentityPage() {
     event.preventDefault();
     setError("");
 
-    if (otp !== expectedOtp) {
-      setError("Invalid OTP. Check your inbox or resend a new code.");
+    if (!otpComplete) {
+      setError(`Enter the ${OTP_LENGTH}-digit code from your email.`);
       return;
     }
 
@@ -145,23 +139,13 @@ export default function VerifyIdentityPage() {
     setError("");
     setOtp("");
     await delay(900);
-    const code = usedDemoEmail ? DEMO_OTP : generateOtp();
-    setExpectedOtp(code);
     setResendIn(30);
-  }
-
-  function fillExample() {
-    setEmail(DEMO_EMAIL);
-    setUsedDemoEmail(true);
-    setError("");
   }
 
   function handleChangeEmail() {
     setPhase("email");
     setOtp("");
-    setExpectedOtp("");
     setError("");
-    setUsedDemoEmail(false);
   }
 
   return (
@@ -197,7 +181,7 @@ export default function VerifyIdentityPage() {
                   </span>
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[color:var(--accent-2)]">
-                      KLU · simulated SSO
+                      KLU · student SSO
                     </p>
                     <h1 className="font-display text-2xl text-[color:var(--ink-strong)] sm:text-3xl">
                       {phase === "otp" || phase === "sendingOtp"
@@ -208,9 +192,6 @@ export default function VerifyIdentityPage() {
                     </h1>
                   </div>
                 </div>
-                <span className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--night-2)] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[color:var(--ink-soft)]">
-                  Demo mode
-                </span>
               </div>
 
               <p className="mt-4 max-w-xl text-sm leading-6 text-[color:var(--ink-soft)]">
@@ -255,7 +236,7 @@ export default function VerifyIdentityPage() {
                             aria-describedby="email-hint email-checks"
                             aria-invalid={Boolean(trimmed && !isValidEmail)}
                             autoComplete="email"
-                            className={`h-12 w-full rounded-md border bg-[color:var(--night-2)] px-4 pr-28 text-sm text-[color:var(--ink)] outline-none transition placeholder:text-[color:var(--ink-soft)] focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+                            className={`h-12 w-full rounded-md border bg-[color:var(--night-2)] px-4 text-sm text-[color:var(--ink)] outline-none transition placeholder:text-[color:var(--ink-soft)] focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${
                               trimmed && isValidEmail
                                 ? "border-[color:var(--accent)] ring-[color:var(--accent)]"
                                 : trimmed && !isValidEmail
@@ -267,21 +248,12 @@ export default function VerifyIdentityPage() {
                             inputMode="email"
                             onChange={(event) => {
                               setEmail(event.target.value);
-                              setUsedDemoEmail(false);
                               setError("");
                             }}
                             placeholder={EXAMPLE_EMAIL}
                             type="email"
                             value={email}
                           />
-                          <button
-                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-[color:var(--stroke)] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[color:var(--accent)] transition hover:border-[color:var(--accent)] hover:bg-[rgba(42,195,222,0.12)] disabled:pointer-events-none disabled:opacity-40"
-                            disabled={phase === "sendingOtp"}
-                            onClick={fillExample}
-                            type="button"
-                          >
-                            Demo fill
-                          </button>
                         </div>
                         <p className="mt-2 font-mono text-xs text-[color:var(--ink-soft)]" id="email-hint">
                           Must end with <span className="text-[color:var(--accent)]">{KLU_EMAIL_SUFFIX}</span>
@@ -323,11 +295,7 @@ export default function VerifyIdentityPage() {
                     </form>
                   ) : (
                     <form className="space-y-4" onSubmit={handleVerifyOtp}>
-                      <OtpSentBanner
-                        maskedEmail={maskEmail(trimmed)}
-                        onChangeEmail={handleChangeEmail}
-                        simulatedOtp={expectedOtp}
-                      />
+                      <OtpSentBanner maskedEmail={maskEmail(trimmed)} onChangeEmail={handleChangeEmail} />
 
                       <div>
                         <label className="text-sm font-bold text-[color:var(--ink-strong)]" htmlFor="otp-code">
@@ -342,8 +310,7 @@ export default function VerifyIdentityPage() {
                           inputMode="numeric"
                           maxLength={OTP_LENGTH}
                           onChange={(event) => {
-                            const digits = event.target.value.replace(/\D/g, "").slice(0, OTP_LENGTH);
-                            setOtp(digits);
+                            setOtp(event.target.value.replace(/\D/g, "").slice(0, OTP_LENGTH));
                             setError("");
                           }}
                           placeholder="······"
@@ -351,7 +318,7 @@ export default function VerifyIdentityPage() {
                           value={otp}
                         />
                         <p className="mt-2 text-xs text-[color:var(--ink-soft)]">
-                          Enter the {OTP_LENGTH}-digit code from your inbox (simulated for demo).
+                          Enter the {OTP_LENGTH}-digit code sent to your email.
                         </p>
                         {error ? (
                           <p className="mt-2 flex items-center gap-2 text-sm font-semibold text-[color:var(--accent-3)]">
@@ -398,7 +365,7 @@ export default function VerifyIdentityPage() {
                       maskedEmail={maskedPreview}
                       verified={phase === "verifying" || phase === "success"}
                     />
-                    <InfoTile Icon={Mail} label="OTP delivery" value="Simulated send to @klu.ac.in inbox" />
+                    <InfoTile Icon={Mail} label="OTP delivery" value="Sent to your @klu.ac.in inbox" />
                     <InfoTile Icon={EyeOff} label="Admin view" value="Eligibility only — no raw email" />
                     <InfoTile Icon={Fingerprint} label="After verify" value="Private commitment replaces identity" />
                   </aside>
@@ -406,7 +373,7 @@ export default function VerifyIdentityPage() {
               )}
 
               <p className="mt-6 text-center text-xs leading-5 text-[color:var(--ink-soft)]">
-                Simulated OTP and verification — no email is sent and no credentials are stored on a server.
+                Your email is used only to verify student eligibility. Identity stays hidden in the complaint flow.
               </p>
             </div>
           </section>
@@ -454,11 +421,9 @@ function FlowSteps({ phase }: { phase: Phase }) {
 function OtpSentBanner({
   maskedEmail,
   onChangeEmail,
-  simulatedOtp,
 }: {
   maskedEmail: string;
   onChangeEmail: () => void;
-  simulatedOtp: string;
 }) {
   return (
     <div className="rounded-xl border border-[color:var(--accent)]/40 bg-[rgba(42,195,222,0.08)] p-4">
@@ -483,13 +448,6 @@ function OtpSentBanner({
           Change
         </button>
       </div>
-      {simulatedOtp ? (
-        <p className="mt-3 rounded-md border border-dashed border-[color:var(--accent)]/50 bg-[color:var(--night-2)] px-3 py-2 text-xs text-[color:var(--ink-soft)]">
-          Simulated inbox — your code:{" "}
-          <span className="font-mono font-bold tracking-widest text-[color:var(--accent)]">{simulatedOtp}</span>
-          <span className="mt-1 block text-[10px] opacity-80">In production, this would only appear in your email.</span>
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -696,12 +654,12 @@ function SuccessPanel({
         </div>
 
         <p className="mt-4 text-sm leading-6 text-[color:var(--ink-soft)]">
-          Your email was used only for OTP simulation. Admins will see eligibility proof, not your address.
+          Your email was used only for verification. Admins will see eligibility proof, not your address.
         </p>
       </div>
 
       <div className="flex items-center justify-between rounded-lg border border-[color:var(--stroke)] bg-[color:var(--night-2)] px-4 py-3">
-        <p className="text-sm font-semibold text-[color:var(--ink)]">Opening protected complaint flow</p>
+        <p className="text-sm font-semibold text-[color:var(--ink)]">Opening dashboard</p>
         <span className="rounded-full border border-[color:var(--accent)] px-3 py-1 text-xs font-bold text-[color:var(--accent)]">
           {redirectIn}s
         </span>
@@ -762,10 +720,6 @@ function getFormatChecks(email: string): FormatCheck[] {
     { label: `Ends with ${KLU_EMAIL_SUFFIX}`, ok: email.endsWith(KLU_EMAIL_SUFFIX) },
     { label: "Institutional format accepted", ok: KLU_EMAIL_PATTERN.test(email) },
   ];
-}
-
-function generateOtp() {
-  return String(Math.floor(100000 + Math.random() * 900000));
 }
 
 function commitmentFromEmail(email: string) {
