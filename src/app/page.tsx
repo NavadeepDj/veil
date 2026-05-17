@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { emptyProcessedComplaint, type ProcessedComplaint } from "@/lib/complaint-processing";
 import { disclosureStateLabel, disclosureStates } from "@/lib/veil-contract";
 
@@ -8,7 +9,19 @@ const sampleComplaint =
   "My name is Priya Nair, roll number CSE-22-104. Professor Kumar from CSE-A threatened to fail me after I refused to meet him alone after class. Please do not reveal my identity because I am scared this will affect my grades.";
 
 export default function Home() {
+  const router = useRouter();
   const [credentialIssued, setCredentialIssued] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    const verified = sessionStorage.getItem("veil.identityVerified") === "true";
+    if (!verified) {
+      router.replace("/home");
+      return;
+    }
+    setCredentialIssued(true);
+    setAuthReady(true);
+  }, [router]);
   const [proofGenerated, setProofGenerated] = useState(false);
   const [complaint, setComplaint] = useState(sampleComplaint);
   const [processed, setProcessed] = useState<ProcessedComplaint>(() => emptyProcessedComplaint());
@@ -68,6 +81,14 @@ export default function Home() {
     } finally {
       setProcessing(false);
     }
+  }
+
+  if (!authReady) {
+    return (
+      <main className="flex min-h-screen items-center justify-center text-[color:var(--ink-soft)]">
+        <p className="text-sm font-semibold">Loading protected workspace…</p>
+      </main>
+    );
   }
 
   return (

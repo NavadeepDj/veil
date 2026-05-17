@@ -1,0 +1,571 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  EyeOff,
+  Fingerprint,
+  KeyRound,
+  Loader2,
+  Mail,
+  RefreshCw,
+  Shield,
+  ShieldCheck,
+  XCircle,
+} from "lucide-react";
+
+const KLU_EMAIL_SUFFIX = "@klu.ac.in";
+const KLU_EMAIL_PATTERN = /^[a-z0-9][a-z0-9._-]*@klu\.ac\.in$/i;
+const EXAMPLE_EMAIL = "99XXXXXX389@klu.ac.in";
+const DEMO_EMAIL = "992104567389@klu.ac.in";
+const DEMO_OTP = "482916";
+const OTP_LENGTH = 6;
+const SIMULATION_STEPS = [
+  { label: "Validating OTP with KLU directory", detail: "One-time code accepted · session bound" },
+  { label: "Matching student enrollment record", detail: "Active semester · no hold flags" },
+  { label: "Issuing private eligibility commitment", detail: "Email discarded · commitment stored" },
+] as const;
+const REDIRECT_SECONDS = 3;
+
+type Phase = "email" | "sendingOtp" | "otp" | "verifying" | "success";
+
+type FormatCheck = {
+  label: string;
+  ok: boolean;
+};
+
+export default function VerifyIdentityPage() {
+  const router = useRouter();
+  const otpInputRef = useRef<HTMLInputElement>(null);
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [expectedOtp, setExpectedOtp] = useState("");
+  const [phase, setPhase] = useState<Phase>("email");
+  const [stepIndex, setStepIndex] = useState(0);
+  const [error, setError] = useState("");
+  const [redirectIn, setRedirectIn] = useState(REDIRECT_SECONDS);
+  const [resendIn, setResendIn] = useState(0);
+  const [usedDemoEmail, setUsedDemoEmail] = useState(false);
+
+  const trimmed = email.trim().toLowerCase();
+  const isValidEmail = KLU_EMAIL_PATTERN.test(trimmed);
+  const formatChecks = useMemo(() => getFormatChecks(trimmed), [trimmed]);
+  const checksPassed = formatChecks.filter((check) => check.ok).length;
+  const maskedPreview = trimmed.includes("@") ? maskEmail(trimmed) : EXAMPLE_EMAIL;
+  const verifyProgress = getVerifyProgress(phase, stepIndex);
+  const otpComplete = otp.length === OTP_LENGTH;
+
+  useEffect(() => {
+    if (phase !== "otp" || resendIn <= 0) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setResendIn((current) => (current <= 1 ? 0 : current - 1));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [phase, resendIn]);
+
+  useEffect(() => {
+    if (phase === "otp") {
+      otpInputRef.current?.focus();
+    }
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "success") {
+      return;
+    }
+
+    sessionStorage.setItem("veil.identityVerified", "true");
+    sessionStorage.setItem("veil.verifiedEmail", trimmed);
+
+    const tick = window.setInterval(() => {
+      setRedirectIn((current) => {
+        if (current <= 1) {
+          router.push("/");
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(tick);
+  }, [phase, router, trimmed]);
+
+  async function handleSendOtp(event: React.FormEvent) {
+    event.preventDefault();
+    setError("");
+
+    if (!isValidEmail) {
+      setError(`Enter a valid KLU email ending with ${KLU_EMAIL_SUFFIX}`);
+      return;
+    }
+
+    setPhase("sendingOtp");
+    await delay(1400);
+
+    const code = usedDemoEmail ? DEMO_OTP : generateOtp();
+    setExpectedOtp(code);
+    setOtp("");
+    setResendIn(30);
+    setPhase("otp");
+  }
+
+  async function handleVerifyOtp(event: React.FormEvent) {
+    event.preventDefault();
+    setError("");
+
+    if (otp !== expectedOtp) {
+      setError("Invalid OTP. Check your inbox or resend a new code.");
+      return;
+    }
+
+    setPhase("verifying");
+    setStepIndex(0);
+
+    for (let index = 0; index < SIMULATION_STEPS.length; index += 1) {
+      await delay(1100);
+      setStepIndex(index + 1);
+    }
+
+    setRedirectIn(REDIRECT_SECONDS);
+    setPhase("success");
+  }
+
+  async function handleResendOtp() {
+    if (resendIn > 0 || phase !== "otp") {
+      return;
+    }
+
+    setError("");
+    setOtp("");
+    await delay(900);
+    const code = usedDemoEmail ? DEMO_OTP : generateOtp();
+    setExpectedOtp(code);
+    setResendIn(30);
+  }
+
+  function fillExample() {
+    setEmail(DEMO_EMAIL);
+    setUsedDemoEmail(true);
+    setError("");
+  }
+
+  function handleChangeEmail() {
+    setPhase("email");
+    setOtp("");
+    setExpectedOtp("");
+    setError("");
+    setUsedDemoEmail(false);
+  }
+
+  return (
+    <main className="relative min-h-screen overflow-hidden bg-transparent text-[color:var(--ink)]">
+      <GlowOrb className="-top-24 right-0" />
+      <GlowOrb className="-bottom-32 left-0" fromAmber />
+
+      <motionBackdrop />
+      <motionBackdrop />
+      <div className="relative mx-auto flex min-h-screen w-full max-w-2xl flex-col px-4 py-8 sm:px-6">
+        <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <Link
+            href="/home"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-[color:var(--ink-soft)] transition hover:text-[color:var(--accent)]"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            Back to home
+          </Link>
+          <StepIndicator active={2} />
+        </header>
+
+        <div className="veil-reveal flex flex-1 flex-col justify-center">
+          <section className="relative overflow-hidden rounded-2xl border border-[color:var(--stroke)] bg-[linear-gradient(135deg,#1f2335_0%,#24283b_55%,#1a2036_100%)] shadow-[0_24px_60px_-40px_rgba(0,0,0,0.7)] veil-glow">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#2ac3de,#7aa2f7,#e0af68)] veil-shimmer" />
+
+            <div className="relative p-6 sm:p-8">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[color:var(--accent)] bg-[rgba(42,195,222,0.12)] text-[color:var(--accent)]">
+                    {phase === "otp" || phase === "verifying" ? (
+                      <KeyRound className="h-6 w-6" aria-hidden />
+                    ) : (
+                      <Mail className="h-6 w-6" aria-hidden />
+                    )}
+                  </span>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[color:var(--accent-2)]">
+                      KLU · simulated SSO
+                    </p>
+                    <h1 className="font-display text-2xl text-[color:var(--ink-strong)] sm:text-3xl">
+                      {phase === "otp" || phase === "sendingOtp"
+                        ? "Enter verification code"
+                        : phase === "verifying"
+                          ? "Verifying credentials"
+                          : "Student email verification"}
+                    </h1>
+                  </div>
+                </div>
+                <span className="rounded-full border border-[color:var(--stroke)] bg-[color:var(--night-2)] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[color:var(--ink-soft)]">
+                  Demo mode
+                </span>
+              </div>
+
+              <p className="mt-4 max-w-xl text-sm leading-6 text-[color:var(--ink-soft)]">
+                {phase === "otp"
+                  ? `We sent a one-time code to ${maskEmail(trimmed)}. Enter it below to confirm your student credentials.`
+                  : phase === "sendingOtp"
+                    ? "Sending a one-time password to your institutional inbox…"
+                    : "Use your KLU address ending in @klu.ac.in. We will email a one-time code, then verify your student credentials."}
+              </p>
+
+              <div className="mt-5 space-y-2">
+                <div className="flex items-center justify-between text-xs font-semibold text-[color:var(--ink-soft)]">
+                  <span>Verification progress</span>
+                  <span className="text-[color:var(--ink-strong)]">{verifyProgress}%</span>
+                </div>
+                <motionBackdrop />
+                <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-[linear-gradient(90deg,#2ac3de,#7aa2f7,#e0af68)] transition-all duration-500 ease-out"
+                    style={{ width: `${verifyProgress}%` }}
+                  />
+                </div>
+              </div>
+
+              <FlowSteps phase={phase} />
+
+              {phase === "success" ? (
+                <SuccessPanel
+                  commitmentId={commitmentFromEmail(trimmed)}
+                  email={trimmed}
+                  redirectIn={redirectIn}
+                />
+              ) : (
+                <div className="mt-6 grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+                  <motionBackdrop />
+                  {phase === "email" || phase === "sendingOtp" ? (
+                    <form className="space-y-4" onSubmit={handleSendOtp}>
+                      <div>
+                        <label className="text-sm font-bold text-[color:var(--ink-strong)]" htmlFor="student-email">
+                          Institutional email
+                        </label>
+                        <motionBackdrop />
+                        <motionBackdrop />
+                        <div className="relative mt-2">
+                          <input
+                            aria-describedby="email-hint email-checks"
+                            aria-invalid={Boolean(trimmed && !isValidEmail)}
+                            autoComplete="email"
+                            className={`h-12 w-full rounded-md border bg-[color:var(--night-2)] px-4 pr-28 text-sm text-[color:var(--ink)] outline-none transition placeholder:text-[color:var(--ink-soft)] focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+                              trimmed && isValidEmail
+                                ? "border-[color:var(--accent)] ring-[color:var(--accent)]"
+                                : trimmed && !isValidEmail
+                                  ? "border-[color:var(--accent-3)] ring-[color:var(--accent-3)]"
+                                  : "border-[color:var(--stroke)] ring-[color:var(--accent)]"
+                            }`}
+                            disabled={phase === "sendingOtp"}
+                            id="student-email"
+                            inputMode="email"
+                            onChange={(event) => {
+                              setEmail(event.target.value);
+                              setUsedDemoEmail(false);
+                              setError("");
+                            }}
+                            placeholder={EXAMPLE_EMAIL}
+                            type="email"
+                            value={email}
+                          />
+                          <button
+                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-[color:var(--stroke)] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[color:var(--accent)] transition hover:border-[color:var(--accent)] hover:bg-[rgba(42,195,222,0.12)] disabled:pointer-events-none disabled:opacity-40"
+                            disabled={phase === "sendingOtp"}
+                            onClick={fillExample}
+                            type="button"
+                          >
+                            Demo fill
+                          </button>
+                        </div>
+                        <p className="mt-2 font-mono text-xs text-[color:var(--ink-soft)]" id="email-hint">
+                          Must end with <span className="text-[color:var(--accent)]">{KLU_EMAIL_SUFFIX}</span>
+                        </p>
+                        {error ? (
+                          <p className="mt-2 flex items-center gap-2 text-sm font-semibold text-[color:var(--accent-3)]">
+                            <XCircle className="h-4 w-4 shrink-0" aria-hidden />
+                            {error}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      {trimmed ? (
+                        <FormatChecklist
+                          checks={formatChecks}
+                          id="email-checks"
+                          passed={checksPassed}
+                          total={formatChecks.length}
+                        />
+                      ) : null}
+
+                      <button
+                        className="flex h-12 w-full items-center justify-center gap-2 rounded-md bg-[color:var(--accent)] text-sm font-bold text-[color:var(--night-1)] transition hover:bg-[#3dd6ef] disabled:cursor-not-allowed disabled:bg-[color:var(--stroke)] disabled:text-[color:var(--ink-soft)]"
+                        disabled={!trimmed || !isValidEmail || phase === "sendingOtp"}
+                        type="submit"
+                      >
+                        {phase === "sendingOtp" ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                            Sending OTP…
+                          </>
+                        ) : (
+                          <>
+                            <Mail className="h-4 w-4" aria-hidden />
+                            Send OTP to email
+                          </>
+                        )}
+                      </button>
+                    </form>
+                  ) : (
+                    <form className="space-y-4" onSubmit={handleVerifyOtp}>
+                      <OtpSentBanner
+                        demoOtp={usedDemoEmail ? DEMO_OTP : undefined}
+                        maskedEmail={maskEmail(trimmed)}
+                        onChangeEmail={handleChangeEmail}
+                      />
+
+                      <div>
+                        <label className="text-sm font-bold text-[color:var(--ink-strong)]" htmlFor="otp-code">
+                          One-time password
+                        </label>
+                        <input
+                          ref={otpInputRef}
+                          autoComplete="one-time-code"
+                          className="mt-2 h-14 w-full rounded-md border border-[color:var(--stroke)] bg-[color:var(--night-2)] px-4 text-center font-mono text-2xl tracking-[0.45em] text-[color:var(--ink)] outline-none ring-[color:var(--accent)] transition placeholder:text-[color:var(--ink-soft)] focus:border-[color:var(--accent)] focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={phase === "verifying"}
+                          id="otp-code"
+                          inputMode="numeric"
+                          maxLength={OTP_LENGTH}
+                          onChange={(event) => {
+                            const digits = event.target.value.replace(/\D/g, "").slice(0, OTP_LENGTH);
+                            setOtp(digits);
+                            setError("");
+                          }}
+                          placeholder="······"
+                          type="text"
+                          value={otp}
+                        />
+                        <p className="mt-2 text-xs text-[color:var(--ink-soft)]">
+                          Enter the {OTP_LENGTH}-digit code from your inbox (simulated for demo).
+                        </p>
+                        {error ? (
+                          <p className="mt-2 flex items-center gap-2 text-sm font-semibold text-[color:var(--accent-3)]">
+                            <XCircle className="h-4 w-4 shrink-0" aria-hidden />
+                            {error}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      {phase === "verifying" ? <SimulationLog activeIndex={stepIndex} /> : null}
+
+                      <button
+                        className="flex h-12 w-full items-center justify-center gap-2 rounded-md bg-[color:var(--accent)] text-sm font-bold text-[color:var(--night-1)] transition hover:bg-[#3dd6ef] disabled:cursor-not-allowed disabled:bg-[color:var(--stroke)] disabled:text-[color:var(--ink-soft)]"
+                        disabled={!otpComplete || phase === "verifying"}
+                        type="submit"
+                      >
+                        {phase === "verifying" ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                            Verifying credentials…
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck className="h-4 w-4" aria-hidden />
+                            Verify OTP & credentials
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        className="flex h-10 w-full items-center justify-center gap-2 text-sm font-semibold text-[color:var(--ink-soft)] transition hover:text-[color:var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={resendIn > 0 || phase === "verifying"}
+                        onClick={handleResendOtp}
+                        type="button"
+                      >
+                        <RefreshCw className="h-4 w-4" aria-hidden />
+                        {resendIn > 0 ? `Resend OTP in ${resendIn}s` : "Resend OTP"}
+                      </button>
+                    </form>
+                  )}
+
+                  <aside className="space-y-3">
+                    <PrivacyPreview
+                      maskedEmail={maskedPreview}
+                      verified={phase === "verifying" || phase === "success"}
+                    />
+                    <InfoTile Icon={Mail} label="OTP delivery" value="Simulated send to @klu.ac.in inbox" />
+                    <InfoTile Icon={EyeOff} label="Admin view" value="Eligibility only — no raw email" />
+                    <InfoTile Icon={Fingerprint} label="After verify" value="Private commitment replaces identity" />
+                  </aside>
+                </div>
+              )}
+
+              <p className="mt-6 text-center text-xs leading-5 text-[color:var(--ink-soft)]">
+                Simulated OTP and verification — no email is sent and no credentials are stored on a server.
+              </p>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function FlowSteps({ phase }: { phase: Phase }) {
+  const steps = [
+    { key: "email", label: "Email" },
+    { key: "otp", label: "OTP" },
+    { key: "credentials", label: "Credentials" },
+  ] as const;
+
+  const activeIndex =
+    phase === "email" || phase === "sendingOtp" ? 0 : phase === "otp" ? 1 : 2;
+
+  return (
+    <ol className="mt-5 flex gap-2" aria-label="Verification steps">
+      {steps.map((step, index) => {
+        const done = index < activeIndex;
+        const active = index === activeIndex;
+
+        return (
+          <li
+            className={`flex-1 rounded-lg border px-3 py-2 text-center text-[10px] font-bold uppercase tracking-[0.14em] ${
+              done
+                ? "border-[color:var(--accent)]/50 bg-[rgba(42,195,222,0.08)] text-[color:var(--accent)]"
+                : active
+                  ? "border-[color:var(--accent)] bg-[color:var(--night-2)] text-[color:var(--ink-strong)]"
+                  : "border-[color:var(--stroke)] text-[color:var(--ink-soft)]"
+            }`}
+            key={step.key}
+          >
+            {step.label}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function OtpSentBanner({
+  demoOtp,
+  maskedEmail,
+  onChangeEmail,
+}: {
+  demoOtp?: string;
+  maskedEmail: string;
+  onChangeEmail: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-[color:var(--accent)]/40 bg-[rgba(42,195,222,0.08)] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[color:var(--accent)]/15 text-[color:var(--accent)]">
+            <Mail className="h-4 w-4" aria-hidden />
+          </span>
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[color:var(--accent)]">OTP sent</p>
+            <p className="mt-1 text-sm leading-5 text-[color:var(--ink-soft)]">
+              A {OTP_LENGTH}-digit code was sent to{" "}
+              <span className="font-mono font-semibold text-[color:var(--ink)]">{maskedEmail}</span>
+            </p>
+          </div>
+        </div>
+        <button
+          className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-[color:var(--accent)] hover:underline"
+          onClick={onChangeEmail}
+          type="button"
+        >
+          Change
+        </button>
+      </div>
+      {demoOtp ? (
+        <p className="mt-3 rounded-md border border-dashed border-[color:var(--accent)]/50 bg-[color:var(--night-2)] px-3 py-2 font-mono text-xs text-[color:var(--accent)]">
+          Demo OTP: <span className="font-bold tracking-widest">{demoOtp}</span>
+        </p>
+      ) : null}
+    </motionBackdrop>
+  );
+}
+
+function getVerifyProgress(phase: Phase, stepIndex: number) {
+  if (phase === "success") {
+    return 100;
+  }
+  if (phase === "verifying") {
+    return 55 + Math.round((stepIndex / SIMULATION_STEPS.length) * 45);
+  }
+  if (phase === "otp") {
+    return 40;
+  }
+  if (phase === "sendingOtp") {
+    return 25;
+  }
+  return 10;
+}
+
+function StepIndicator({ active }: { active: number }) {
+  const steps = ["Intro", "Verify", "Report"];
+
+  return (
+    <ol className="flex items-center gap-2" aria-label="Progress">
+      {steps.map((label, index) => {
+        const stepNumber = index + 1;
+        const isActive = stepNumber === active;
+        const isDone = stepNumber < active;
+
+        return (
+          <li className="flex items-center gap-2" key={label}>
+            <span
+              className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold ${
+                isActive
+                  ? "border border-[color:var(--accent)] bg-[rgba(42,195,222,0.15)] text-[color:var(--accent)]"
+                  : isDone
+                    ? "border border-[color:var(--accent)] text-[color:var(--accent)]"
+                    : "border border-[color:var(--stroke)] text-[color:var(--ink-soft)]"
+              }`}
+            >
+              {isDone ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> : stepNumber}
+            </span>
+            <span
+              className={`hidden text-[10px] font-bold uppercase tracking-[0.16em] sm:inline ${
+                isActive ? "text-[color:var(--ink-strong)]" : "text-[color:var(--ink-soft)]"
+              }`}
+            >
+              {label}
+            </span>
+            {index < steps.length - 1 ? (
+              <span className="hidden h-px w-4 bg-[color:var(--stroke)] sm:block" aria-hidden />
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function FormatChecklist({
+  checks,
+  id,
+  passed,
+  total,
+}: {
+  checks: FormatCheck[];
+  id: string;
+  passed: number;
+  total: number;
+}) {
+  return (
+    <motionBackdrop />
+  );
+}
